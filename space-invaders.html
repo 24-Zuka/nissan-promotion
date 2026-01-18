@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>スペースインベーダー</title>
+  <style>
+    body {
+      margin: 0;
+      background: #000;
+      color: #fff;
+      text-align: center;
+      font-family: sans-serif;
+    }
+    canvas {
+      background: #000;
+      display: block;
+      margin: 20px auto;
+      border: 1px solid #444;
+    }
+  </style>
+</head>
+<body>
+  <h1>スペースインベーダー</h1>
+  <canvas id="game" width="480" height="320"></canvas>
+  <script>
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+
+    let leftPressed = false;
+    let rightPressed = false;
+    let spacePressed = false;
+
+    document.addEventListener('keydown', e => {
+      if (e.key === 'ArrowLeft') leftPressed = true;
+      if (e.key === 'ArrowRight') rightPressed = true;
+      if (e.key === ' ') spacePressed = true;
+    });
+    document.addEventListener('keyup', e => {
+      if (e.key === 'ArrowLeft') leftPressed = false;
+      if (e.key === 'ArrowRight') rightPressed = false;
+      if (e.key === ' ') spacePressed = false;
+    });
+
+    class Player {
+      constructor() {
+        this.width = 40;
+        this.height = 20;
+        this.x = (canvas.width - this.width) / 2;
+        this.y = canvas.height - this.height - 10;
+        this.speed = 5;
+        this.cooldown = 0;
+      }
+      update() {
+        if (leftPressed && this.x > 0) this.x -= this.speed;
+        if (rightPressed && this.x + this.width < canvas.width) this.x += this.speed;
+        if (spacePressed && this.cooldown <= 0) {
+          bullets.push(new Bullet(this.x + this.width / 2, this.y));
+          this.cooldown = 15;
+        }
+        if (this.cooldown > 0) this.cooldown--;
+      }
+      draw() {
+        ctx.fillStyle = 'white';
+        ctx.fillRect(this.x, this.y, this.width, this.height);
+      }
+    }
+
+    class Bullet {
+      constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        this.speed = 7;
+      }
+      update() {
+        this.y -= this.speed;
+      }
+      draw() {
+        ctx.fillStyle = 'red';
+        ctx.fillRect(this.x - 2, this.y - 10, 4, 10);
+      }
+      outOfBounds() {
+        return this.y < 0;
+      }
+    }
+
+    class Enemy {
+      constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        this.width = 30;
+        this.height = 20;
+        this.alive = true;
+      }
+      draw() {
+        ctx.fillStyle = 'lime';
+        ctx.fillRect(this.x, this.y, this.width, this.height);
+      }
+    }
+
+    const player = new Player();
+    let bullets = [];
+    const enemies = [];
+    let enemyDx = 1;
+
+    function initEnemies() {
+      const rows = 4;
+      const cols = 8;
+      const offsetX = 30;
+      const offsetY = 30;
+      const spacingX = 40;
+      const spacingY = 30;
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          const x = offsetX + c * spacingX;
+          const y = offsetY + r * spacingY;
+          enemies.push(new Enemy(x, y));
+        }
+      }
+    }
+    initEnemies();
+
+    function updateEnemies() {
+      let hitEdge = false;
+      enemies.forEach(e => {
+        if (!e.alive) return;
+        e.x += enemyDx;
+        if (e.x <= 0 || e.x + e.width >= canvas.width) hitEdge = true;
+      });
+      if (hitEdge) {
+        enemyDx *= -1;
+        enemies.forEach(e => e.y += 20);
+      }
+    }
+
+    function handleCollisions() {
+      bullets.forEach(b => {
+        enemies.forEach(e => {
+          if (
+            e.alive &&
+            b.x > e.x &&
+            b.x < e.x + e.width &&
+            b.y > e.y &&
+            b.y < e.y + e.height
+          ) {
+            e.alive = false;
+            b.y = -10;
+          }
+        });
+      });
+      enemies.forEach(e => {
+        if (e.alive && e.y + e.height >= player.y) {
+          gameOver = true;
+        }
+      });
+    }
+
+    let gameOver = false;
+
+    function update() {
+      player.update();
+      bullets.forEach(b => b.update());
+      bullets = bullets.filter(b => !b.outOfBounds());
+      updateEnemies();
+      handleCollisions();
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      player.draw();
+      bullets.forEach(b => b.draw());
+      enemies.forEach(e => {
+        if (e.alive) e.draw();
+      });
+      if (gameOver) {
+        ctx.fillStyle = 'white';
+        ctx.font = '24px sans-serif';
+        ctx.fillText('GAME OVER', canvas.width / 2 - 70, canvas.height / 2);
+      }
+    }
+
+    function loop() {
+      if (!gameOver) update();
+      draw();
+      requestAnimationFrame(loop);
+    }
+    loop();
+  </script>
+</body>
+</html>
