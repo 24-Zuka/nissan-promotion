@@ -11,11 +11,12 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 
 # 依存解決を先に（レイヤキャッシュを効かせる）。
-COPY package.json package-lock.json ./
+# package-lock.json があれば npm ci、無ければ npm install にフォールバック。
+COPY package.json ./
 COPY packages/shared/package.json packages/shared/
 COPY apps/api/package.json apps/api/
 COPY apps/web/package.json apps/web/
-RUN npm ci
+RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
 
 # ソースを入れて全ワークスペースをビルド（shared → api → web）。
 COPY . .
