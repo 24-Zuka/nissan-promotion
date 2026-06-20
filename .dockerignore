@@ -1,0 +1,15 @@
+node_modules
+**/node_modules
+dist
+**/dist
+apps/api/data
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.db
+.git
+.gitignore
+nissan-crm.bundle
+*.log
+coverage
+.DS_Store

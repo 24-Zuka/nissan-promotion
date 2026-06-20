@@ -1,0 +1,22 @@
+# Render Blueprint — My Dealer CRM をフルスタック（API+Web 同一オリジン）で公開。
+# Render ダッシュボード ▸ New ▸ Blueprint ▸ このリポジトリを選択 ▸ Apply で構築される。
+services:
+  - type: web
+    name: my-dealer-crm
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: starter # 永続ディスク（Disk）を使うには有料インスタンスが必要
+    region: singapore # 日本から近い。必要に応じて変更可
+    healthCheckPath: /api/v1/health
+    autoDeploy: true # main への push で自動デプロイ
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DB_FILE
+        value: /data/crm.sqlite
+      - key: JWT_SECRET
+        generateValue: true # Render が強いランダム値を自動生成
+    disk:
+      name: crm-data
+      mountPath: /data # DB_FILE と一致させること
+      sizeGB: 1
