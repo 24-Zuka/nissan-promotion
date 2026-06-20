@@ -1,0 +1,24 @@
+{
+  "name": "my-dealer-crm",
+  "private": true,
+  "version": "0.1.0",
+  "description": "My Dealer CRM (海さん専用) — 営業フォロー漏れ防止・点検/車検自動生成・端末間同期",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "build": "npm run build -w @crm/shared && npm run build -w @crm/api && npm run build -w @crm/web",
+    "dev": "concurrently -n api,web -c blue,green \"npm run dev -w @crm/api\" \"npm run dev -w @crm/web\"",
+    "test": "npm run test -w @crm/shared && npm run test -w @crm/api",
+    "lint": "eslint .",
+    "typecheck": "npm run typecheck -w @crm/shared && npm run typecheck -w @crm/api && npm run typecheck -w @crm/web"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0",
+    "typescript": "^5.7.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
