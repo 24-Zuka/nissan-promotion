@@ -2,9 +2,10 @@
  * 認証コンテキスト。ログイン状態と user_profile を保持。
  */
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { api } from './api.js';
 import { tokens } from './tokens.js';
-import { startSyncLoop } from './sync.js';
+import { startSyncLoop, SYNC_EVENT } from './sync.js';
 import { clearLocalData } from './db.js';
 
 interface AuthState {
@@ -19,6 +20,7 @@ const AuthContext = createContext<AuthState | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthed, setIsAuthed] = useState<boolean>(!!tokens.access);
   const [username, setUsername] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
   // 認証中は差分同期ループを回す（オンライン復帰/フォアグラウンド/一定間隔）。
   useEffect(() => {
@@ -26,6 +28,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const stop = startSyncLoop();
     return stop;
   }, [isAuthed]);
+
+  // 同期完了時に TanStack Query を一括 invalidate し、Dexie の最新データで UI を更新。
+  useEffect(() => {
+    const handler = () => queryClient.invalidateQueries();
+    window.addEventListener(SYNC_EVENT, handler);
+    return () => window.removeEventListener(SYNC_EVENT, handler);
+  }, [queryClient]);
 
   const login = async (u: string, pin: string) => {
     const res = await api.login(u, pin);

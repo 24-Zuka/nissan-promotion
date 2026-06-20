@@ -8,7 +8,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { Setting } from '@crm/shared';
-import { api } from '../lib/api.js';
+import * as store from '../lib/store.js';
 import { useAuth } from '../lib/auth.js';
 import {
   getPermission,
@@ -76,11 +76,11 @@ export default function SettingsPage() {
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['settings'],
-    queryFn: () => api.getSettings(),
+    queryFn: () => store.getSettings(),
   });
 
   const update = useMutation({
-    mutationFn: (input: Partial<Setting>) => api.updateSettings(input),
+    mutationFn: (input: Partial<Setting>) => store.updateSettings(input),
     onSuccess: (next) => {
       queryClient.setQueryData(['settings'], next);
       queryClient.invalidateQueries({ queryKey: ['settings'] });

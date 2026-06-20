@@ -25,6 +25,8 @@ import {
   type StoredEntity,
 } from './db.js';
 
+export const SYNC_EVENT = 'crm-sync';
+
 export function isOnline(): boolean {
   return typeof navigator === 'undefined' ? true : navigator.onLine;
 }
@@ -86,6 +88,9 @@ export function sync(): Promise<void> {
       if (!isOnline()) return;
       await push();
       await pull();
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event(SYNC_EVENT));
+      }
     } catch {
       // ネットワーク不調などは次トリガで再試行（顧客情報はログに出さない）。
     } finally {

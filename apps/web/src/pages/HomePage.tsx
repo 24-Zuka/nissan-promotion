@@ -15,7 +15,8 @@ import {
   type Rank,
   todayInTokyo,
 } from '@crm/shared';
-import { api, type TaskWithContact } from '../lib/api.js';
+import type { TaskWithContact } from '../lib/api.js';
+import * as store from '../lib/store.js';
 import { scheduleNotifications } from '../lib/notifications.js';
 import AppHeader from '../components/AppHeader.js';
 import TaskRow from '../components/TaskRow.js';
@@ -35,11 +36,11 @@ export default function HomePage() {
 
   const { data, isLoading, isError } = useQuery({
     queryKey: tasksKey,
-    queryFn: () => api.listTasks({ status: 'open' }),
+    queryFn: () => store.listTasks({ status: 'open' }),
   });
 
   const complete = useMutation({
-    mutationFn: (id: string) => api.completeTask(id),
+    mutationFn: (id: string) => store.completeTask(id),
     onMutate: async (id: string) => {
       await queryClient.cancelQueries({ queryKey: tasksKey });
       const prev = queryClient.getQueryData<TaskWithContact[]>(tasksKey);
@@ -58,7 +59,7 @@ export default function HomePage() {
 
   const settingsQuery = useQuery({
     queryKey: ['settings'],
-    queryFn: () => api.getSettings(),
+    queryFn: () => store.getSettings(),
     staleTime: 5 * 60_000,
   });
 

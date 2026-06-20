@@ -7,7 +7,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { RANKS, RANK_ORDER, type Contact, type ContactCreateInput, type Rank } from '@crm/shared';
-import { api } from '../lib/api.js';
+import * as store from '../lib/store.js';
 import AppHeader from '../components/AppHeader.js';
 import RankBadge from '../components/RankBadge.js';
 import Modal from '../components/Modal.js';
@@ -19,7 +19,7 @@ export default function ContactsPage() {
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['contacts'],
-    queryFn: () => api.listContacts(),
+    queryFn: () => store.listContacts(),
   });
 
   const sorted = [...(data ?? [])].sort((a, b) => {
@@ -98,7 +98,7 @@ function NewContactModal({
   const [email, setEmail] = useState('');
 
   const create = useMutation({
-    mutationFn: (input: ContactCreateInput) => api.createContact(input),
+    mutationFn: (input: ContactCreateInput) => store.createContact(input),
     onSuccess: () => {
       setName('');
       setRank('B');

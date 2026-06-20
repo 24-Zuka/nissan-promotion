@@ -14,7 +14,7 @@ import {
   type TemplateCategory,
   type TemplateCreateInput,
 } from '@crm/shared';
-import { api } from '../lib/api.js';
+import * as store from '../lib/store.js';
 import AppHeader from '../components/AppHeader.js';
 import Modal from '../components/Modal.js';
 import { Field, Select, TextArea, TextInput } from '../components/Field.js';
@@ -31,11 +31,11 @@ export default function TemplatesPage() {
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['templates'],
-    queryFn: () => api.listTemplates(),
+    queryFn: () => store.listTemplates(),
   });
 
   const remove = useMutation({
-    mutationFn: (id: string) => api.deleteTemplate(id),
+    mutationFn: (id: string) => store.deleteTemplate(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['templates'] }),
   });
 
@@ -173,7 +173,7 @@ function TemplateForm({
 
   const save = useMutation({
     mutationFn: (input: TemplateCreateInput) =>
-      template ? api.updateTemplate(template.id, input) : api.createTemplate(input),
+      template ? store.updateTemplate(template.id, input) : store.createTemplate(input),
     onSuccess: onSaved,
   });
 

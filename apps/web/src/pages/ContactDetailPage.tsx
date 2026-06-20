@@ -29,7 +29,7 @@ import {
   type VehicleCreateInput,
 } from '@crm/shared';
 import type { TaskWithContact } from '../lib/api.js';
-import { api } from '../lib/api.js';
+import * as store from '../lib/store.js';
 import AppHeader from '../components/AppHeader.js';
 import RankBadge from '../components/RankBadge.js';
 import Modal from '../components/Modal.js';
@@ -49,12 +49,12 @@ export default function ContactDetailPage() {
   const queryClient = useQueryClient();
   const [modal, setModal] = useState<null | 'note' | 'task' | 'vehicle' | 'message'>(null);
 
-  const contactQ = useQuery({ queryKey: ['contact', id], queryFn: () => api.getContact(id) });
-  const vehiclesQ = useQuery({ queryKey: ['vehicles', id], queryFn: () => api.listVehicles(id) });
-  const notesQ = useQuery({ queryKey: ['notes', id], queryFn: () => api.listNotes(id) });
+  const contactQ = useQuery({ queryKey: ['contact', id], queryFn: () => store.getContact(id) });
+  const vehiclesQ = useQuery({ queryKey: ['vehicles', id], queryFn: () => store.listVehicles(id) });
+  const notesQ = useQuery({ queryKey: ['notes', id], queryFn: () => store.listNotes(id) });
   const tasksQ = useQuery({
     queryKey: ['tasks', { contact_id: id, status: 'open' }],
-    queryFn: () => api.listTasks({ contact_id: id, status: 'open' }),
+    queryFn: () => store.listTasks({ contact_id: id, status: 'open' }),
   });
 
   const close = () => setModal(null);
@@ -257,7 +257,7 @@ function NoteModal({
   const [taskDue, setTaskDue] = useState(today);
 
   const create = useMutation({
-    mutationFn: (input: NoteCreateInput) => api.createNote(input),
+    mutationFn: (input: NoteCreateInput) => store.createNote(input),
     onSuccess: onDone,
   });
 
@@ -355,7 +355,7 @@ function TaskModal({
   const [vehicleId, setVehicleId] = useState('');
 
   const create = useMutation({
-    mutationFn: (input: TaskCreateInput) => api.createTask(input),
+    mutationFn: (input: TaskCreateInput) => store.createTask(input),
     onSuccess: onDone,
   });
 
@@ -439,7 +439,7 @@ function MessageModal({
   tasks: TaskWithContact[];
   onClose: () => void;
 }) {
-  const templatesQ = useQuery({ queryKey: ['templates'], queryFn: () => api.listTemplates() });
+  const templatesQ = useQuery({ queryKey: ['templates'], queryFn: () => store.listTemplates() });
   const [templateId, setTemplateId] = useState('');
   const [text, setText] = useState('');
   const [copied, setCopied] = useState(false);
@@ -535,7 +535,7 @@ function VehicleModal({
   const [generate, setGenerate] = useState(true);
 
   const create = useMutation({
-    mutationFn: (input: VehicleCreateInput) => api.createVehicle(input),
+    mutationFn: (input: VehicleCreateInput) => store.createVehicle(input),
     onSuccess: onDone,
   });
 
