@@ -61,6 +61,19 @@ export const TASK_TYPE_LABEL: Record<TaskType, string> = {
 export const VEHICLE_CONDITIONS = ['new', 'used'] as const;
 export type VehicleCondition = (typeof VEHICLE_CONDITIONS)[number];
 
+/**
+ * 車検周期プロファイル。メンテ自動生成の車検サイクルを切り替える。
+ * - standard: 自家用乗用車。初回3年・以降2年（仕様5.2の既定）。
+ * - annual:   毎年車検（8ナンバー等の特種用途・一部大型）。
+ */
+export const INSPECTION_PROFILES = ['standard', 'annual'] as const;
+export type InspectionProfile = (typeof INSPECTION_PROFILES)[number];
+
+export const INSPECTION_PROFILE_LABEL: Record<InspectionProfile, string> = {
+  standard: '標準（初回3年・以降2年）',
+  annual: '毎年車検（8ナンバー等）',
+};
+
 /** テンプレートのカテゴリ。 */
 export const TEMPLATE_CATEGORIES = ['maintenance', 'followup'] as const;
 export type TemplateCategory = (typeof TEMPLATE_CATEGORIES)[number];

@@ -69,6 +69,38 @@ describe('generateMaintenanceTasksForNewCar', () => {
     // +1 month from Jan 31 clamps to Feb 28 (2025 is not leap).
     expect(t[0].due_date).toBe('2025-02-28');
   });
+
+  it('defaults to the standard profile when none is given', () => {
+    const explicit = generateMaintenanceTasksForNewCar(VEHICLE, START, 'standard');
+    expect(explicit).toEqual(tasks);
+  });
+});
+
+describe('generateMaintenanceTasksForNewCar (annual profile / 8ナンバー等)', () => {
+  const START = '2025-04-10';
+  const annual = generateMaintenanceTasksForNewCar(VEHICLE, START, 'annual');
+
+  it('schedules SHAKEN every 12 months from month 12', () => {
+    const shakenOffsets = annual
+      .filter((t) => t.type === TASK_TYPE.SHAKEN)
+      .map((t) => t.due_date);
+    expect(shakenOffsets).toEqual([12, 24, 36, 48, 60].map((m) => addMonths(START, m)));
+  });
+
+  it('keeps the 1m/6m free inspections like the standard profile', () => {
+    expect(annual[0].type).toBe(TASK_TYPE.INSPECTION_FREE_1M);
+    expect(annual[1].type).toBe(TASK_TYPE.INSPECTION_FREE_6M);
+  });
+
+  it('does not schedule any standard statutory-12m checks (replaced by yearly shaken)', () => {
+    expect(annual.some((t) => t.type === TASK_TYPE.INSPECTION_STATUTORY_12M)).toBe(false);
+  });
+
+  it('still tags tasks with the new-car generation_key', () => {
+    expect(new Set(annual.map((t) => t.generation_key))).toEqual(
+      new Set([`maint:new:${VEHICLE}`]),
+    );
+  });
 });
 
 describe('generateMaintenanceTasksForUsedCar', () => {

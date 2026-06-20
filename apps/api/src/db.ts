@@ -54,6 +54,7 @@ CREATE TABLE IF NOT EXISTS vehicles (
   registration_date TEXT,
   delivery_date TEXT,
   shaken_expiry_date TEXT,
+  inspection_profile TEXT NOT NULL DEFAULT 'standard',
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   deleted_at TEXT,
@@ -143,6 +144,19 @@ CREATE INDEX IF NOT EXISTS idx_tasks_due ON tasks(due_date, status);
 CREATE INDEX IF NOT EXISTS idx_templates_user ON templates(user_id, seq);
 `;
 
+/** 既存テーブルに列が無ければ追加する（CREATE TABLE IF NOT EXISTS は列追加をしないため）。 */
+function ensureColumn(db: DB, table: string, column: string, ddl: string): void {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
+  if (!cols.some((c) => c.name === column)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${ddl}`);
+  }
+}
+
+/** 後付けカラムのマイグレーション（定数DEFAULTのみ＝SQLiteのADD COLUMN制約に適合）。 */
+function migrate(db: DB): void {
+  ensureColumn(db, 'vehicles', 'inspection_profile', "inspection_profile TEXT NOT NULL DEFAULT 'standard'");
+}
+
 export function openDb(filename: string): DB {
   if (filename !== ':memory:') {
     mkdirSync(dirname(filename), { recursive: true });
@@ -151,6 +165,7 @@ export function openDb(filename: string): DB {
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
   db.exec(SCHEMA);
+  migrate(db);
   return db;
 }
 

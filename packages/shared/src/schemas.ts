@@ -2,7 +2,14 @@
  * zod スキーマ。APIリクエストの検証に api 側で使用し、web 側でフォーム検証にも流用する。
  */
 import { z } from 'zod';
-import { RANKS, TASK_STATUSES, TASK_TYPE, TEMPLATE_CATEGORIES, VEHICLE_CONDITIONS } from './domain.js';
+import {
+  INSPECTION_PROFILES,
+  RANKS,
+  TASK_STATUSES,
+  TASK_TYPE,
+  TEMPLATE_CATEGORIES,
+  VEHICLE_CONDITIONS,
+} from './domain.js';
 
 const dateStr = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'YYYY-MM-DD 形式で指定してください');
 const taskTypeValues = Object.values(TASK_TYPE) as [string, ...string[]];
@@ -35,6 +42,7 @@ export const vehicleCreateSchema = z
     registration_date: dateStr.nullish(),
     delivery_date: dateStr.nullish(),
     shaken_expiry_date: dateStr.nullish(),
+    inspection_profile: z.enum(INSPECTION_PROFILES).optional(), // 車検周期（既定 standard）
     generate_maintenance: z.boolean().optional(), // 作成時にメンテ自動生成するか
   })
   .refine((v) => v.condition !== 'used' || !!v.shaken_expiry_date, {
@@ -48,6 +56,7 @@ export const vehicleUpdateSchema = z.object({
   registration_date: dateStr.nullish(),
   delivery_date: dateStr.nullish(),
   shaken_expiry_date: dateStr.nullish(),
+  inspection_profile: z.enum(INSPECTION_PROFILES).optional(),
 });
 
 export const noteCreateSchema = z.object({

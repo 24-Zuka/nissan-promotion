@@ -1,7 +1,14 @@
 /**
  * エンティティ型。DB行とAPIレスポンスの基準形。
  */
-import type { Rank, TaskStatus, TaskType, TemplateCategory, VehicleCondition } from './domain.js';
+import type {
+  InspectionProfile,
+  Rank,
+  TaskStatus,
+  TaskType,
+  TemplateCategory,
+  VehicleCondition,
+} from './domain.js';
 import type { DateString } from './date.js';
 
 /** 同期・ソフトデリート用の共通メタ。全エンティティが持つ。 */
@@ -41,6 +48,7 @@ export interface Vehicle extends BaseEntity {
   registration_date: DateString | null; // 登録日
   delivery_date: DateString | null; // 納車日
   shaken_expiry_date: DateString | null; // 車検満了日（中古は必須）
+  inspection_profile: InspectionProfile; // 車検周期プロファイル（既定 standard）
 }
 
 export interface Note extends BaseEntity {

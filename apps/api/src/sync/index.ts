@@ -59,6 +59,7 @@ const COLUMNS: Record<SyncTable, string[]> = {
     'registration_date',
     'delivery_date',
     'shaken_expiry_date',
+    'inspection_profile',
   ],
   notes: ['contact_id', 'date', 'summary', 'reaction', 'next_action'],
   tasks: [

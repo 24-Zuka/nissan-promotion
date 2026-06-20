@@ -80,6 +80,23 @@ export interface TaskWithContact extends Task {
   contact_rank?: string;
 }
 
+/** /sync の入出力（apps/api/src/sync/index.ts と対応）。 */
+export interface SyncChanges {
+  [table: string]: Array<{ id: string; deleted_at?: string | null; [k: string]: unknown }>;
+}
+export interface SyncPullResponse {
+  changes: SyncChanges;
+  sync_token: number;
+}
+export interface SyncPushBody {
+  sync_token: number;
+  events: Array<{ table: string; op: string; entity: { id: string; [k: string]: unknown } }>;
+}
+export interface SyncPushResponse extends SyncPullResponse {
+  applied: number;
+  rejected: Array<{ index: number; reason: string; table?: string; id?: string }>;
+}
+
 export const api = {
   // --- auth ---
   async login(username: string, pin: string): Promise<LoginResponse> {
@@ -138,9 +155,18 @@ export const api = {
   listTemplates: (category?: string) => request<Template[]>(`/templates${qs({ category })}`),
   createTemplate: (input: TemplateCreateInput) =>
     request<Template>('/templates', { method: 'POST', body: JSON.stringify(input) }),
+  updateTemplate: (id: string, input: Partial<TemplateCreateInput>) =>
+    request<Template>(`/templates/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
+  deleteTemplate: (id: string) => request<void>(`/templates/${id}`, { method: 'DELETE' }),
 
   // --- settings ---
   getSettings: () => request<Setting>('/settings'),
   updateSettings: (input: Partial<Setting>) =>
     request<Setting>('/settings', { method: 'PATCH', body: JSON.stringify(input) }),
+
+  // --- sync（差分同期。Dexie アウトボックス/プルで端末間同期に使う） ---
+  syncPull: (sync_token: number) =>
+    request<SyncPullResponse>(`/sync/pull${qs({ sync_token: String(sync_token) })}`),
+  syncPush: (body: SyncPushBody) =>
+    request<SyncPushResponse>('/sync/push', { method: 'POST', body: JSON.stringify(body) }),
 };

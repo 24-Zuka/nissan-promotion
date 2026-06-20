@@ -11,6 +11,7 @@ import HomePage from './pages/HomePage.js';
 import ContactsPage from './pages/ContactsPage.js';
 import ContactDetailPage from './pages/ContactDetailPage.js';
 import SettingsPage from './pages/SettingsPage.js';
+import TemplatesPage from './pages/TemplatesPage.js';
 
 function RequireAuth({ children }: { children: ReactNode }) {
   const { isAuthed } = useAuth();
@@ -52,6 +53,14 @@ export default function App() {
         element={
           <RequireAuth>
             <SettingsPage />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/templates"
+        element={
+          <RequireAuth>
+            <TemplatesPage />
           </RequireAuth>
         }
       />

@@ -1,9 +1,11 @@
 /**
  * 認証コンテキスト。ログイン状態と user_profile を保持。
  */
-import { createContext, useContext, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { api } from './api.js';
 import { tokens } from './tokens.js';
+import { startSyncLoop } from './sync.js';
+import { clearLocalData } from './db.js';
 
 interface AuthState {
   isAuthed: boolean;
@@ -18,6 +20,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthed, setIsAuthed] = useState<boolean>(!!tokens.access);
   const [username, setUsername] = useState<string | null>(null);
 
+  // 認証中は差分同期ループを回す（オンライン復帰/フォアグラウンド/一定間隔）。
+  useEffect(() => {
+    if (!isAuthed) return;
+    const stop = startSyncLoop();
+    return stop;
+  }, [isAuthed]);
+
   const login = async (u: string, pin: string) => {
     const res = await api.login(u, pin);
     setUsername(res.user_profile.username);
@@ -25,6 +34,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
   const logout = async () => {
     await api.logout();
+    await clearLocalData();
     setUsername(null);
     setIsAuthed(false);
   };

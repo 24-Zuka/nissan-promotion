@@ -1,9 +1,11 @@
 /**
- * 設定。  [担当: Sub D — UI / 通知は Sub E と連携]
- * - 通知ON/OFF・通知タイミング表示(30/7/1/当日)・長期セッション・カレンダー連携(次フェーズ表示)。
+ * 設定。  [担当: Sub D — UI / 通知は Sub E と連携 / Phase 3a で通知タイミング編集対応]
+ * - 通知ON/OFF・通知タイミング編集(任意の「N日前/当日」)・長期セッション・カレンダー連携(次フェーズ表示)。
+ * - 文例テンプレート管理(/templates)への導線。
  * - api.getSettings / api.updateSettings。
  */
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { Setting } from '@crm/shared';
 import { api } from '../lib/api.js';
@@ -103,18 +105,11 @@ export default function SettingsPage() {
               />
             </Row>
 
-            <Row title="通知タイミング" desc="MVPでは固定（変更不可）">
-              <div className="flex flex-wrap justify-end gap-1">
-                {data.notify_offsets_days.map((d) => (
-                  <span
-                    key={d}
-                    className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600"
-                  >
-                    {offsetLabel(d)}
-                  </span>
-                ))}
-              </div>
-            </Row>
+            <NotifyOffsetsRow
+              offsets={data.notify_offsets_days}
+              disabled={update.isPending}
+              onChange={(next) => update.mutate({ notify_offsets_days: next })}
+            />
 
             <Row title="長期セッション" desc="ログイン状態を長く保持します">
               <Toggle
@@ -133,6 +128,17 @@ export default function SettingsPage() {
 
           <NotificationPermissionRow enabled={data.notifications_enabled} />
 
+          <Link
+            to="/templates"
+            className="mt-4 flex items-center justify-between rounded-xl bg-white px-4 py-4 shadow-sm active:bg-gray-50"
+          >
+            <div>
+              <div className="font-medium text-gray-900">文例テンプレート</div>
+              <div className="mt-0.5 text-xs text-gray-500">点検案内・営業フォローの定型文を管理</div>
+            </div>
+            <span className="text-gray-300">›</span>
+          </Link>
+
           <div className="mt-6 px-1 text-xs text-gray-500">ログイン中: {username ?? '—'}</div>
           <button
             type="button"
@@ -143,6 +149,83 @@ export default function SettingsPage() {
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+/** 通知タイミング（期限の何日前）の編集行。0=当日。重複・負数は弾く。 */
+function NotifyOffsetsRow({
+  offsets,
+  disabled,
+  onChange,
+}: {
+  offsets: number[];
+  disabled?: boolean;
+  onChange: (next: number[]) => void;
+}) {
+  const [value, setValue] = useState('');
+  const sorted = [...offsets].sort((a, b) => b - a);
+
+  const add = () => {
+    const n = Number(value);
+    if (!Number.isInteger(n) || n < 0) return;
+    if (offsets.includes(n)) {
+      setValue('');
+      return;
+    }
+    onChange([...offsets, n].sort((a, b) => b - a));
+    setValue('');
+  };
+
+  const removeAt = (d: number) => onChange(offsets.filter((o) => o !== d));
+
+  return (
+    <div className="border-b border-gray-100 px-4 py-4 last:border-b-0">
+      <div className="font-medium text-gray-900">通知タイミング</div>
+      <div className="mt-0.5 text-xs text-gray-500">期限の何日前に通知するか（0=当日）</div>
+
+      <div className="mt-2 flex flex-wrap gap-1">
+        {sorted.length === 0 && <span className="text-xs text-gray-400">未設定</span>}
+        {sorted.map((d) => (
+          <button
+            key={d}
+            type="button"
+            disabled={disabled}
+            onClick={() => removeAt(d)}
+            className="flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600 active:bg-gray-200 disabled:opacity-40"
+          >
+            {offsetLabel(d)}
+            <span className="text-gray-400">×</span>
+          </button>
+        ))}
+      </div>
+
+      <div className="mt-2 flex items-center gap-2">
+        <input
+          type="number"
+          min={0}
+          inputMode="numeric"
+          value={value}
+          disabled={disabled}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              add();
+            }
+          }}
+          placeholder="日数"
+          className="w-24 rounded-lg border border-gray-300 px-3 py-1.5 text-sm outline-none focus:border-nissan focus:ring-1 focus:ring-nissan"
+        />
+        <button
+          type="button"
+          onClick={add}
+          disabled={disabled || value === ''}
+          className="rounded-lg bg-nissan px-3 py-1.5 text-sm font-medium text-white active:opacity-80 disabled:opacity-40"
+        >
+          追加
+        </button>
+      </div>
     </div>
   );
 }

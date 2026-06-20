@@ -8,6 +8,7 @@ import {
   mergeGeneratedTasks,
   type ExistingTaskLike,
   type GeneratedTaskSpec,
+  type InspectionProfile,
 } from '@crm/shared';
 import { nextSeq, type DB } from './db.js';
 import { newId, nowIso } from './repo.js';
@@ -19,16 +20,22 @@ interface VehicleForGen {
   registration_date: string | null;
   delivery_date: string | null;
   shaken_expiry_date: string | null;
+  inspection_profile?: string | null;
+}
+
+function profileOf(vehicle: VehicleForGen): InspectionProfile {
+  return vehicle.inspection_profile === 'annual' ? 'annual' : 'standard';
 }
 
 function specsFor(vehicle: VehicleForGen): GeneratedTaskSpec[] {
+  const profile = profileOf(vehicle);
   if (vehicle.condition === 'used') {
     if (!vehicle.shaken_expiry_date) return [];
-    return generateMaintenanceTasksForUsedCar(vehicle.id, vehicle.shaken_expiry_date);
+    return generateMaintenanceTasksForUsedCar(vehicle.id, vehicle.shaken_expiry_date, profile);
   }
   const start = vehicle.delivery_date ?? vehicle.registration_date;
   if (!start) return [];
-  return generateMaintenanceTasksForNewCar(vehicle.id, start);
+  return generateMaintenanceTasksForNewCar(vehicle.id, start, profile);
 }
 
 /**

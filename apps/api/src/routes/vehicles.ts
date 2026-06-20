@@ -26,6 +26,7 @@ interface VehicleRow {
   registration_date: string | null;
   delivery_date: string | null;
   shaken_expiry_date: string | null;
+  inspection_profile: string | null;
   [key: string]: unknown;
 }
 
@@ -80,8 +81,8 @@ export function vehiclesRouter(db: DB): Router {
     db.prepare(
       `INSERT INTO vehicles
          (id, contact_id, name, model_code, condition, registration_date,
-          delivery_date, shaken_expiry_date, created_at, updated_at, deleted_at, seq)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?)`,
+          delivery_date, shaken_expiry_date, inspection_profile, created_at, updated_at, deleted_at, seq)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?)`,
     ).run(
       id,
       d.contact_id,
@@ -91,6 +92,7 @@ export function vehiclesRouter(db: DB): Router {
       d.registration_date ?? null,
       d.delivery_date ?? null,
       d.shaken_expiry_date ?? null,
+      d.inspection_profile ?? 'standard',
       ts,
       ts,
       nextSeq(db),
@@ -105,6 +107,7 @@ export function vehiclesRouter(db: DB): Router {
         registration_date: v.registration_date,
         delivery_date: v.delivery_date,
         shaken_expiry_date: v.shaken_expiry_date,
+        inspection_profile: v.inspection_profile as string | null,
       });
     }
 
@@ -133,6 +136,7 @@ export function vehiclesRouter(db: DB): Router {
       'registration_date',
       'delivery_date',
       'shaken_expiry_date',
+      'inspection_profile',
     ];
     for (const col of cols) {
       if (d[col] !== undefined) {

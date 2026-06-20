@@ -8,7 +8,7 @@
  *
  * NOTE: 再生成時は mergeGeneratedTasks で手動修正・着手済みタスクを保護する。
  */
-import { TASK_TYPE, TASK_TYPE_LABEL, type TaskType } from './domain.js';
+import { TASK_TYPE, TASK_TYPE_LABEL, type InspectionProfile, type TaskType } from './domain.js';
 import { addDays, addMonths, type DateString } from './date.js';
 
 export interface GeneratedTaskSpec {
@@ -19,8 +19,10 @@ export interface GeneratedTaskSpec {
   generation_key: string;
 }
 
-/** 新車スケジュール（基準日からの月数, 種別）。仕様5.2準拠。 */
-const NEW_CAR_SCHEDULE: ReadonlyArray<[months: number, type: TaskType]> = [
+type Schedule = ReadonlyArray<[months: number, type: TaskType]>;
+
+/** 新車スケジュール（基準日からの月数, 種別）。仕様5.2準拠（standard=初回3年/以降2年）。 */
+const NEW_CAR_SCHEDULE: Schedule = [
   [1, TASK_TYPE.INSPECTION_FREE_1M],
   [6, TASK_TYPE.INSPECTION_FREE_6M],
   [12, TASK_TYPE.INSPECTION_STATUTORY_12M],
@@ -34,19 +36,43 @@ const NEW_CAR_SCHEDULE: ReadonlyArray<[months: number, type: TaskType]> = [
   [60, TASK_TYPE.SHAKEN],
 ];
 
+/**
+ * 毎年車検プロファイル（8ナンバー等）。新車1/6か月無料点検の後、12か月ごとに車検。
+ * 中間の6か月地点には安心点検を入れる。
+ */
+const NEW_CAR_SCHEDULE_ANNUAL: Schedule = [
+  [1, TASK_TYPE.INSPECTION_FREE_1M],
+  [6, TASK_TYPE.INSPECTION_FREE_6M],
+  [12, TASK_TYPE.SHAKEN],
+  [18, TASK_TYPE.INSPECTION_ANSHIN_6M],
+  [24, TASK_TYPE.SHAKEN],
+  [30, TASK_TYPE.INSPECTION_ANSHIN_6M],
+  [36, TASK_TYPE.SHAKEN],
+  [42, TASK_TYPE.INSPECTION_ANSHIN_6M],
+  [48, TASK_TYPE.SHAKEN],
+  [54, TASK_TYPE.INSPECTION_ANSHIN_6M],
+  [60, TASK_TYPE.SHAKEN],
+];
+
+function newCarSchedule(profile: InspectionProfile): Schedule {
+  return profile === 'annual' ? NEW_CAR_SCHEDULE_ANNUAL : NEW_CAR_SCHEDULE;
+}
+
 function genKey(vehicleId: string, scheme: 'new' | 'used'): string {
   return `maint:${scheme}:${vehicleId}`;
 }
 
 /**
  * 新車：納車日（または登録日）を起点にメンテタスクを生成。
+ * profile で車検サイクルを切替（standard=初回3年/以降2年, annual=毎年車検）。
  */
 export function generateMaintenanceTasksForNewCar(
   vehicleId: string,
   startDate: DateString,
+  profile: InspectionProfile = 'standard',
 ): GeneratedTaskSpec[] {
   const key = genKey(vehicleId, 'new');
-  return NEW_CAR_SCHEDULE.map(([months, type]) => ({
+  return newCarSchedule(profile).map(([months, type]) => ({
     type,
     title: TASK_TYPE_LABEL[type],
     due_date: addMonths(startDate, months),
@@ -57,10 +83,13 @@ export function generateMaintenanceTasksForNewCar(
 /**
  * 中古車：車検満了日を起点に生成。
  * 車検は満了日、直前点検（安心6か月点検）は満了30日前。
+ * 既知の満了日に基づく直近サイクルのみ生成するため profile では結果は変わらない
+ * （次回以降は次の満了日が判明した時点で再生成する）。
  */
 export function generateMaintenanceTasksForUsedCar(
   vehicleId: string,
   shakenExpiryDate: DateString,
+  _profile: InspectionProfile = 'standard',
 ): GeneratedTaskSpec[] {
   const key = genKey(vehicleId, 'used');
   return [

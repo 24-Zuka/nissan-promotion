@@ -9,19 +9,26 @@ import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  INSPECTION_PROFILES,
+  INSPECTION_PROFILE_LABEL,
   isMaintenanceTaskType,
+  renderTemplate,
   TASK_TYPE,
   TASK_TYPE_LABEL,
   todayInTokyo,
   VEHICLE_CONDITIONS,
   type Contact,
+  type InspectionProfile,
+  type Note,
   type NoteCreateInput,
   type TaskCreateInput,
   type TaskType,
+  type Template,
   type Vehicle,
   type VehicleCondition,
   type VehicleCreateInput,
 } from '@crm/shared';
+import type { TaskWithContact } from '../lib/api.js';
 import { api } from '../lib/api.js';
 import AppHeader from '../components/AppHeader.js';
 import RankBadge from '../components/RankBadge.js';
@@ -40,7 +47,7 @@ const OPTIONAL_FIELDS: { key: keyof Contact; label: string }[] = [
 export default function ContactDetailPage() {
   const { id = '' } = useParams();
   const queryClient = useQueryClient();
-  const [modal, setModal] = useState<null | 'note' | 'task' | 'vehicle'>(null);
+  const [modal, setModal] = useState<null | 'note' | 'task' | 'vehicle' | 'message'>(null);
 
   const contactQ = useQuery({ queryKey: ['contact', id], queryFn: () => api.getContact(id) });
   const vehiclesQ = useQuery({ queryKey: ['vehicles', id], queryFn: () => api.listVehicles(id) });
@@ -86,6 +93,13 @@ export default function ContactDetailPage() {
             <ActionBtn label="タスク追加" onClick={() => setModal('task')} />
             <ActionBtn label="車両追加" onClick={() => setModal('vehicle')} />
           </div>
+          <button
+            type="button"
+            onClick={() => setModal('message')}
+            className="w-full rounded-xl bg-nissan py-2.5 text-sm font-bold text-white active:opacity-80"
+          >
+            ✉ テンプレートから文面生成
+          </button>
 
           {/* 未完タスク */}
           <Section title="未完タスク">
@@ -169,6 +183,15 @@ export default function ContactDetailPage() {
           contactId={id}
           onClose={close}
           onDone={() => invalidate([['vehicles', id], ['tasks', { contact_id: id, status: 'open' }], ['tasks']])}
+        />
+      )}
+      {modal === 'message' && c && (
+        <MessageModal
+          contact={c}
+          vehicles={vehiclesQ.data ?? []}
+          notes={notesQ.data ?? []}
+          tasks={tasksQ.data ?? []}
+          onClose={close}
         />
       )}
     </div>
@@ -401,6 +424,96 @@ function TaskModal({
   );
 }
 
+/* ---------- テンプレートから文面生成 ---------- */
+
+function MessageModal({
+  contact,
+  vehicles,
+  notes,
+  tasks,
+  onClose,
+}: {
+  contact: Contact;
+  vehicles: Vehicle[];
+  notes: Note[];
+  tasks: TaskWithContact[];
+  onClose: () => void;
+}) {
+  const templatesQ = useQuery({ queryKey: ['templates'], queryFn: () => api.listTemplates() });
+  const [templateId, setTemplateId] = useState('');
+  const [text, setText] = useState('');
+  const [copied, setCopied] = useState(false);
+
+  // 差し込み元: 顧客名 / 直近の未完タスク期限 / 先頭車両の車名 / 最新メモ要点。
+  const vars = {
+    顧客名: contact.name,
+    予定日: tasks[0]?.due_date ?? '',
+    車種: vehicles[0]?.name ?? '',
+    前回要点: notes[0]?.summary ?? '',
+  };
+
+  const apply = (tpl: Template | undefined) => {
+    setCopied(false);
+    setText(tpl ? renderTemplate(tpl.body, vars) : '');
+  };
+
+  const onPick = (id: string) => {
+    setTemplateId(id);
+    apply((templatesQ.data ?? []).find((t) => t.id === id));
+  };
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+    } catch {
+      setCopied(false);
+    }
+  };
+
+  const templates = templatesQ.data ?? [];
+
+  return (
+    <Modal open title="文面生成" onClose={onClose}>
+      {templates.length === 0 ? (
+        <p className="text-sm text-gray-500">
+          テンプレートがありません。設定 → 文例テンプレートで作成してください。
+        </p>
+      ) : (
+        <>
+          <Field label="テンプレート" required>
+            <Select value={templateId} onChange={(e) => onPick(e.target.value)}>
+              <option value="">選択してください</option>
+              {templates.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+
+          <Field label="生成された文面（編集可）">
+            <TextArea rows={6} value={text} onChange={(e) => setText(e.target.value)} />
+          </Field>
+
+          <button
+            type="button"
+            onClick={copy}
+            disabled={!text}
+            className="mt-1 w-full rounded-xl bg-nissan py-3 font-bold text-white active:opacity-80 disabled:opacity-40"
+          >
+            {copied ? 'コピーしました ✓' : 'クリップボードにコピー'}
+          </button>
+          <p className="mt-2 text-xs text-gray-400">
+            差し込み: 顧客名={vars.顧客名 || '—'} / 予定日={vars.予定日 || '—'} / 車種=
+            {vars.車種 || '—'} / 前回要点={vars.前回要点 ? '最新メモ' : '—'}
+          </p>
+        </>
+      )}
+    </Modal>
+  );
+}
+
 /* ---------- 車両追加 ---------- */
 
 function VehicleModal({
@@ -418,6 +531,7 @@ function VehicleModal({
   const [registration, setRegistration] = useState('');
   const [delivery, setDelivery] = useState('');
   const [shaken, setShaken] = useState('');
+  const [profile, setProfile] = useState<InspectionProfile>('standard');
   const [generate, setGenerate] = useState(true);
 
   const create = useMutation({
@@ -438,6 +552,7 @@ function VehicleModal({
       registration_date: registration || undefined,
       delivery_date: delivery || undefined,
       shaken_expiry_date: shaken || undefined,
+      inspection_profile: profile,
       generate_maintenance: generate,
     });
   };
@@ -471,6 +586,15 @@ function VehicleModal({
       {usedNeedsShaken && (
         <div className="mb-2 text-xs text-nissan">中古車は車検満了日が必須です。</div>
       )}
+      <Field label="車検周期">
+        <Select value={profile} onChange={(e) => setProfile(e.target.value as InspectionProfile)}>
+          {INSPECTION_PROFILES.map((p) => (
+            <option key={p} value={p}>
+              {INSPECTION_PROFILE_LABEL[p]}
+            </option>
+          ))}
+        </Select>
+      </Field>
 
       <label className="mb-3 flex items-center gap-2 text-sm font-medium text-gray-700">
         <input type="checkbox" checked={generate} onChange={(e) => setGenerate(e.target.checked)} />
