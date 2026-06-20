@@ -9,7 +9,7 @@
   ],
   "scripts": {
     "build": "npm run build -w @crm/shared && npm run build -w @crm/api && npm run build -w @crm/web",
-    "dev": "concurrently -n api,web -c blue,green \"npm run dev -w @crm/api\" \"npm run dev -w @crm/web\"",
+    "dev": "npm run build -w @crm/shared && concurrently -n api,web -c blue,green \"npm run dev -w @crm/api\" \"npm run dev -w @crm/web\"",
     "test": "npm run test -w @crm/shared && npm run test -w @crm/api",
     "lint": "eslint .",
     "typecheck": "npm run typecheck -w @crm/shared && npm run typecheck -w @crm/api && npm run typecheck -w @crm/web"
