@@ -37,6 +37,7 @@ import * as store from '../lib/store.js';
 import AppHeader from '../components/AppHeader.js';
 import RankBadge from '../components/RankBadge.js';
 import Modal from '../components/Modal.js';
+import { Card, SectionLabel } from '../components/ui.js';
 import { Field, Select, TextArea, TextInput } from '../components/Field.js';
 
 const OPTIONAL_FIELDS: { key: keyof Contact; label: string }[] = [
@@ -94,42 +95,52 @@ export default function ContactDetailPage() {
   const c = contactQ.data;
 
   return (
-    <div className="min-h-screen pb-10">
+    <div className="min-h-screen bg-grouped pb-10">
       <AppHeader
-        title={c?.name ?? '顧客詳細'}
+        title="顧客"
         back="/contacts"
         right={
           c && (
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setModal('edit')}
-                className="text-sm font-bold text-nissan"
-              >
-                編集
-              </button>
-              <RankBadge rank={c.rank} />
-            </div>
+            <button
+              type="button"
+              onClick={() => setModal('edit')}
+              className="text-[15px] text-ink active:opacity-60"
+            >
+              編集
+            </button>
           )
         }
       />
 
-      {contactQ.isLoading && <div className="p-6 text-center text-gray-500">読み込み中…</div>}
-      {contactQ.isError && <div className="p-6 text-center text-nissan">読み込みに失敗しました。</div>}
+      {contactQ.isLoading && <div className="p-6 text-center text-text2">読み込み中…</div>}
+      {contactQ.isError && <div className="p-6 text-center text-overdue">読み込みに失敗しました。</div>}
 
       {c && (
-        <div className="space-y-4 p-4">
+        <div className="mx-auto max-w-content space-y-4 p-4">
+          {/* 顧客ヘッダー（アバター＋氏名） */}
+          <div className="flex items-center gap-3 px-1 pt-1">
+            <RankBadge rank={c.rank} size={44} className="text-[17px]" />
+            <div className="min-w-0">
+              <div className="truncate text-[24px] font-semibold tracking-tight text-ink">{c.name}</div>
+              {c.phone && <div className="text-[13px] text-text2">{c.phone}</div>}
+            </div>
+          </div>
+
           {/* 顧客情報 */}
           <Section title="顧客情報">
-            <dl className="divide-y divide-gray-100">
-              <InfoRow label="電話" value={c.phone} />
-              <InfoRow label="メール" value={c.email} />
-              {OPTIONAL_FIELDS.map(
-                (f) => c[f.key] != null && c[f.key] !== '' && (
-                  <InfoRow key={f.key as string} label={f.label} value={String(c[f.key])} />
-                ),
-              )}
-            </dl>
+            {c.phone || c.email || OPTIONAL_FIELDS.some((f) => c[f.key] != null && c[f.key] !== '') ? (
+              <dl className="divide-y divide-separator">
+                <InfoRow label="電話" value={c.phone} />
+                <InfoRow label="メール" value={c.email} />
+                {OPTIONAL_FIELDS.map(
+                  (f) => c[f.key] != null && c[f.key] !== '' && (
+                    <InfoRow key={f.key as string} label={f.label} value={String(c[f.key])} />
+                  ),
+                )}
+              </dl>
+            ) : (
+              <Empty>連絡先は未登録です。「編集」から追加できます。</Empty>
+            )}
           </Section>
 
           {/* アクション */}
@@ -141,7 +152,7 @@ export default function ContactDetailPage() {
           <button
             type="button"
             onClick={() => setModal('message')}
-            className="w-full rounded-xl bg-nissan py-2.5 text-sm font-bold text-white active:opacity-80"
+            className="w-full rounded-xl bg-ink py-3 text-sm font-semibold text-on-ink active:opacity-80"
           >
             ✉ テンプレートから文面生成
           </button>
@@ -149,12 +160,12 @@ export default function ContactDetailPage() {
           {/* 未完タスク */}
           <Section title="未完タスク">
             {tasksQ.data && tasksQ.data.length > 0 ? (
-              <ul className="divide-y divide-gray-100">
+              <ul className="divide-y divide-separator">
                 {tasksQ.data.map((t) => (
                   <li key={t.id} className="flex items-center justify-between gap-2 py-2 text-sm">
                     <div className="min-w-0">
-                      <span className="text-gray-900">{t.title}</span>
-                      <span className="ml-2 text-xs text-gray-500">{t.due_date}</span>
+                      <span className="text-ink">{t.title}</span>
+                      <span className="ml-2 text-xs text-text2">{t.due_date}</span>
                     </div>
                     <RowActions
                       onEdit={() => setEditTask(t)}
@@ -178,17 +189,17 @@ export default function ContactDetailPage() {
           {/* 車両リスト */}
           <Section title="車両リスト">
             {vehiclesQ.data && vehiclesQ.data.length > 0 ? (
-              <ul className="divide-y divide-gray-100">
+              <ul className="divide-y divide-separator">
                 {vehiclesQ.data.map((v: Vehicle) => (
                   <li key={v.id} className="flex items-start justify-between gap-2 py-2 text-sm">
                     <div className="min-w-0">
-                      <div className="font-medium text-gray-900">
+                      <div className="font-medium text-ink">
                         {v.name ?? '（車名未設定）'}
-                        <span className="ml-2 text-xs text-gray-500">
+                        <span className="ml-2 text-xs text-text2">
                           {v.condition === 'used' ? '中古' : '新車'}
                         </span>
                       </div>
-                      <div className="text-xs text-gray-500">
+                      <div className="text-xs text-text2">
                         {v.model_code && `型式 ${v.model_code}`}
                         {v.shaken_expiry_date && ` / 車検満了 ${v.shaken_expiry_date}`}
                       </div>
@@ -219,11 +230,11 @@ export default function ContactDetailPage() {
                 {notesQ.data.slice(0, 5).map((n) => (
                   <li key={n.id} className="flex items-start justify-between gap-2 text-sm">
                     <div className="min-w-0">
-                      <div className="text-xs text-gray-400">{n.date}</div>
-                      <div className="text-gray-900">{n.summary}</div>
-                      {n.reaction && <div className="text-xs text-gray-500">反応: {n.reaction}</div>}
+                      <div className="text-xs text-text3">{n.date}</div>
+                      <div className="text-ink">{n.summary}</div>
+                      {n.reaction && <div className="text-xs text-text2">反応: {n.reaction}</div>}
                       {n.next_action && (
-                        <div className="text-xs text-gray-500">次アクション: {n.next_action}</div>
+                        <div className="text-xs text-text2">次アクション: {n.next_action}</div>
                       )}
                     </div>
                     <RowActions
@@ -259,7 +270,7 @@ export default function ContactDetailPage() {
                 },
               })
             }
-            className="w-full rounded-xl border border-red-200 bg-white py-2.5 text-sm font-bold text-red-600 active:bg-red-50"
+            className="w-full rounded-xl border border-separator bg-surface py-3 text-sm font-semibold text-overdue active:bg-tint"
           >
             この顧客を削除
           </button>
@@ -422,13 +433,13 @@ function EditModal({
         </Field>
       ))}
 
-      {update.isError && <div className="mb-2 text-sm text-nissan">保存に失敗しました。</div>}
+      {update.isError && <div className="mb-2 text-sm text-overdue">保存に失敗しました。</div>}
 
       <button
         type="button"
         onClick={submit}
         disabled={!name.trim() || update.isPending}
-        className="mt-1 w-full rounded-xl bg-nissan py-3 font-bold text-white active:opacity-80 disabled:opacity-40"
+        className="mt-1 w-full rounded-xl bg-ink py-3 font-semibold text-on-ink active:opacity-80 disabled:opacity-40"
       >
         {update.isPending ? '保存中…' : '保存'}
       </button>
@@ -455,13 +466,13 @@ function DeleteModal({
 
   return (
     <Modal open title={title} onClose={onClose}>
-      <p className="mb-4 text-sm text-gray-700">{message}</p>
-      {del.isError && <div className="mb-2 text-sm text-nissan">削除に失敗しました。</div>}
+      <p className="mb-4 text-sm text-text2">{message}</p>
+      {del.isError && <div className="mb-2 text-sm text-overdue">削除に失敗しました。</div>}
       <div className="flex gap-2">
         <button
           type="button"
           onClick={onClose}
-          className="flex-1 rounded-xl border border-gray-300 bg-white py-3 font-bold text-gray-700 active:bg-gray-50"
+          className="flex-1 rounded-xl border border-separator bg-surface py-3 font-semibold text-ink active:bg-tint"
         >
           キャンセル
         </button>
@@ -469,7 +480,7 @@ function DeleteModal({
           type="button"
           onClick={() => del.mutate()}
           disabled={del.isPending}
-          className="flex-1 rounded-xl bg-red-600 py-3 font-bold text-white active:opacity-80 disabled:opacity-40"
+          className="flex-1 rounded-xl bg-overdue py-3 font-semibold text-white active:opacity-80 disabled:opacity-40"
         >
           {del.isPending ? '削除中…' : '削除する'}
         </button>
@@ -482,9 +493,9 @@ function DeleteModal({
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-xl bg-white p-4 shadow-sm">
-      <h2 className="mb-2 text-sm font-bold text-gray-700">{title}</h2>
-      {children}
+    <section>
+      <SectionLabel>{title}</SectionLabel>
+      <Card className="p-4">{children}</Card>
     </section>
   );
 }
@@ -493,14 +504,14 @@ function InfoRow({ label, value }: { label: string; value: string | null }) {
   if (value == null || value === '') return null;
   return (
     <div className="flex justify-between gap-3 py-2 text-sm">
-      <dt className="text-gray-500">{label}</dt>
-      <dd className="text-right text-gray-900">{value}</dd>
+      <dt className="text-text2">{label}</dt>
+      <dd className="text-right text-ink">{value}</dd>
     </div>
   );
 }
 
 function Empty({ children }: { children: React.ReactNode }) {
-  return <div className="py-2 text-sm text-gray-400">{children}</div>;
+  return <div className="py-2 text-sm text-text3">{children}</div>;
 }
 
 function ActionBtn({ label, onClick }: { label: string; onClick: () => void }) {
@@ -508,7 +519,7 @@ function ActionBtn({ label, onClick }: { label: string; onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      className="rounded-xl border border-nissan bg-white py-2 text-sm font-bold text-nissan active:bg-red-50"
+      className="rounded-xl border border-separator bg-surface py-2.5 text-sm font-semibold text-ink active:bg-tint"
     >
       {label}
     </button>
@@ -518,11 +529,11 @@ function ActionBtn({ label, onClick }: { label: string; onClick: () => void }) {
 /** リスト行の「編集 / 削除」操作。 */
 function RowActions({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => void }) {
   return (
-    <div className="flex shrink-0 items-center gap-2">
-      <button type="button" onClick={onEdit} className="text-xs font-bold text-nissan">
+    <div className="flex shrink-0 items-center gap-3">
+      <button type="button" onClick={onEdit} className="text-xs font-semibold text-ink active:opacity-60">
         編集
       </button>
-      <button type="button" onClick={onDelete} className="text-xs font-bold text-red-600">
+      <button type="button" onClick={onDelete} className="text-xs font-semibold text-overdue active:opacity-60">
         削除
       </button>
     </div>
@@ -585,13 +596,13 @@ function NoteModal({
         <TextInput value={nextAction} onChange={(e) => setNextAction(e.target.value)} />
       </Field>
 
-      <label className="mb-3 flex items-center gap-2 text-sm font-medium text-gray-700">
+      <label className="mb-3 flex items-center gap-2 text-sm font-medium text-text2">
         <input type="checkbox" checked={withTask} onChange={(e) => setWithTask(e.target.checked)} />
         次アクションもタスク登録する
       </label>
 
       {withTask && (
-        <div className="mb-3 rounded-lg bg-gray-50 p-3">
+        <div className="mb-3 rounded-[10px] bg-grouped p-3">
           <Field label="種別" required>
             <Select value={taskType} onChange={(e) => setTaskType(e.target.value as TaskType)}>
               {Object.values(TASK_TYPE).map((t) => (
@@ -608,20 +619,20 @@ function NoteModal({
             <TextInput type="date" value={taskDue} onChange={(e) => setTaskDue(e.target.value)} />
           </Field>
           {isMaintenanceTaskType(taskType) && (
-            <p className="text-xs text-nissan">
+            <p className="text-xs text-overdue">
               メンテ系タスクは車両との紐付けが必要です。車両を指定する場合は「タスク追加」をご利用ください。
             </p>
           )}
         </div>
       )}
 
-      {create.isError && <div className="mb-2 text-sm text-nissan">登録に失敗しました。</div>}
+      {create.isError && <div className="mb-2 text-sm text-overdue">登録に失敗しました。</div>}
 
       <button
         type="button"
         onClick={submit}
         disabled={!summary.trim() || create.isPending}
-        className="mt-1 w-full rounded-xl bg-nissan py-3 font-bold text-white active:opacity-80 disabled:opacity-40"
+        className="mt-1 w-full rounded-xl bg-ink py-3 font-semibold text-on-ink active:opacity-80 disabled:opacity-40"
       >
         {create.isPending ? '登録中…' : '登録'}
       </button>
@@ -700,17 +711,17 @@ function TaskModal({
       </Field>
 
       {needsVehicle && vehicles.length === 0 && (
-        <div className="mb-2 text-xs text-nissan">
+        <div className="mb-2 text-xs text-overdue">
           メンテ系タスクには車両が必要です。先に車両を追加してください。
         </div>
       )}
-      {create.isError && <div className="mb-2 text-sm text-nissan">登録に失敗しました。</div>}
+      {create.isError && <div className="mb-2 text-sm text-overdue">登録に失敗しました。</div>}
 
       <button
         type="button"
         onClick={submit}
         disabled={blocked || create.isPending}
-        className="mt-1 w-full rounded-xl bg-nissan py-3 font-bold text-white active:opacity-80 disabled:opacity-40"
+        className="mt-1 w-full rounded-xl bg-ink py-3 font-semibold text-on-ink active:opacity-80 disabled:opacity-40"
       >
         {create.isPending ? '登録中…' : '登録'}
       </button>
@@ -770,7 +781,7 @@ function MessageModal({
   return (
     <Modal open title="文面生成" onClose={onClose}>
       {templates.length === 0 ? (
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-text2">
           テンプレートがありません。設定 → 文例テンプレートで作成してください。
         </p>
       ) : (
@@ -794,11 +805,11 @@ function MessageModal({
             type="button"
             onClick={copy}
             disabled={!text}
-            className="mt-1 w-full rounded-xl bg-nissan py-3 font-bold text-white active:opacity-80 disabled:opacity-40"
+            className="mt-1 w-full rounded-xl bg-ink py-3 font-semibold text-on-ink active:opacity-80 disabled:opacity-40"
           >
             {copied ? 'コピーしました ✓' : 'クリップボードにコピー'}
           </button>
-          <p className="mt-2 text-xs text-gray-400">
+          <p className="mt-2 text-xs text-text3">
             差し込み: 顧客名={vars.顧客名 || '—'} / 予定日={vars.予定日 || '—'} / 車種=
             {vars.車種 || '—'} / 前回要点={vars.前回要点 ? '最新メモ' : '—'}
           </p>
@@ -878,7 +889,7 @@ function VehicleModal({
         <TextInput type="date" value={shaken} onChange={(e) => setShaken(e.target.value)} />
       </Field>
       {usedNeedsShaken && (
-        <div className="mb-2 text-xs text-nissan">中古車は車検満了日が必須です。</div>
+        <div className="mb-2 text-xs text-overdue">中古車は車検満了日が必須です。</div>
       )}
       <Field label="車検周期">
         <Select value={profile} onChange={(e) => setProfile(e.target.value as InspectionProfile)}>
@@ -890,18 +901,18 @@ function VehicleModal({
         </Select>
       </Field>
 
-      <label className="mb-3 flex items-center gap-2 text-sm font-medium text-gray-700">
+      <label className="mb-3 flex items-center gap-2 text-sm font-medium text-text2">
         <input type="checkbox" checked={generate} onChange={(e) => setGenerate(e.target.checked)} />
         点検・車検スケジュールを自動生成する
       </label>
 
-      {create.isError && <div className="mb-2 text-sm text-nissan">登録に失敗しました。</div>}
+      {create.isError && <div className="mb-2 text-sm text-overdue">登録に失敗しました。</div>}
 
       <button
         type="button"
         onClick={submit}
         disabled={blocked || create.isPending}
-        className="mt-1 w-full rounded-xl bg-nissan py-3 font-bold text-white active:opacity-80 disabled:opacity-40"
+        className="mt-1 w-full rounded-xl bg-ink py-3 font-semibold text-on-ink active:opacity-80 disabled:opacity-40"
       >
         {create.isPending ? '登録中…' : '登録'}
       </button>
@@ -976,7 +987,7 @@ function EditVehicleModal({
         <TextInput type="date" value={shaken} onChange={(e) => setShaken(e.target.value)} />
       </Field>
       {usedNeedsShaken && (
-        <div className="mb-2 text-xs text-nissan">中古車は車検満了日が必須です。</div>
+        <div className="mb-2 text-xs text-overdue">中古車は車検満了日が必須です。</div>
       )}
       <Field label="車検周期">
         <Select value={profile} onChange={(e) => setProfile(e.target.value as InspectionProfile)}>
@@ -988,16 +999,16 @@ function EditVehicleModal({
         </Select>
       </Field>
 
-      <p className="mb-2 text-xs text-gray-400">
+      <p className="mb-2 text-xs text-text3">
         ※ 既存の点検・車検タスクは自動で再生成されません（必要に応じてタスクを編集してください）。
       </p>
-      {update.isError && <div className="mb-2 text-sm text-nissan">保存に失敗しました。</div>}
+      {update.isError && <div className="mb-2 text-sm text-overdue">保存に失敗しました。</div>}
 
       <button
         type="button"
         onClick={submit}
         disabled={blocked || update.isPending}
-        className="mt-1 w-full rounded-xl bg-nissan py-3 font-bold text-white active:opacity-80 disabled:opacity-40"
+        className="mt-1 w-full rounded-xl bg-ink py-3 font-semibold text-on-ink active:opacity-80 disabled:opacity-40"
       >
         {update.isPending ? '保存中…' : '保存'}
       </button>
@@ -1052,13 +1063,13 @@ function EditNoteModal({
         <TextInput value={nextAction} onChange={(e) => setNextAction(e.target.value)} />
       </Field>
 
-      {update.isError && <div className="mb-2 text-sm text-nissan">保存に失敗しました。</div>}
+      {update.isError && <div className="mb-2 text-sm text-overdue">保存に失敗しました。</div>}
 
       <button
         type="button"
         onClick={submit}
         disabled={!summary.trim() || update.isPending}
-        className="mt-1 w-full rounded-xl bg-nissan py-3 font-bold text-white active:opacity-80 disabled:opacity-40"
+        className="mt-1 w-full rounded-xl bg-ink py-3 font-semibold text-on-ink active:opacity-80 disabled:opacity-40"
       >
         {update.isPending ? '保存中…' : '保存'}
       </button>
@@ -1154,23 +1165,23 @@ function EditTaskModal({
         </Select>
       </Field>
 
-      <label className="mb-3 flex items-center gap-2 text-sm font-medium text-gray-700">
+      <label className="mb-3 flex items-center gap-2 text-sm font-medium text-text2">
         <input type="checkbox" checked={notify} onChange={(e) => setNotify(e.target.checked)} />
         期限が近づいたら通知する
       </label>
 
       {needsVehicle && vehicles.length === 0 && (
-        <div className="mb-2 text-xs text-nissan">
+        <div className="mb-2 text-xs text-overdue">
           メンテ系タスクには車両が必要です。先に車両を追加してください。
         </div>
       )}
-      {update.isError && <div className="mb-2 text-sm text-nissan">保存に失敗しました。</div>}
+      {update.isError && <div className="mb-2 text-sm text-overdue">保存に失敗しました。</div>}
 
       <button
         type="button"
         onClick={submit}
         disabled={blocked || update.isPending}
-        className="mt-1 w-full rounded-xl bg-nissan py-3 font-bold text-white active:opacity-80 disabled:opacity-40"
+        className="mt-1 w-full rounded-xl bg-ink py-3 font-semibold text-on-ink active:opacity-80 disabled:opacity-40"
       >
         {update.isPending ? '保存中…' : '保存'}
       </button>

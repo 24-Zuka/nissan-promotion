@@ -6,6 +6,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth.js';
+import { Button } from '../components/ui.js';
 
 const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'del'] as const;
 
@@ -40,33 +41,36 @@ export default function LoginPage() {
 
   return (
     <div className="mx-auto flex min-h-screen max-w-sm flex-col justify-center px-6 py-10">
-      <div className="mb-8 text-center">
-        <div className="text-2xl font-bold text-nissan">NISSAN CRM</div>
-        <div className="mt-1 text-sm text-gray-500">営業フォロー支援</div>
+      <div className="mb-10 text-center">
+        <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-[14px] bg-ink text-2xl font-bold text-on-ink">
+          D
+        </div>
+        <div className="text-[22px] font-semibold tracking-tight text-ink">My Dealer CRM</div>
+        <div className="mt-1 text-[13px] text-text2">営業フォロー支援</div>
       </div>
 
-      <label className="mb-4 block">
-        <span className="mb-1 block text-sm font-medium text-gray-700">ユーザー名</span>
+      <label className="mb-5 block">
+        <span className="mb-1.5 block text-[13px] font-medium text-text2">ユーザー名</span>
         <input
           value={username}
           onChange={(e) => setUsername(e.target.value)}
           autoCapitalize="none"
           autoCorrect="off"
-          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-base outline-none focus:border-nissan focus:ring-1 focus:ring-nissan"
+          className="w-full rounded-[10px] border border-transparent bg-surface px-3.5 py-3 text-[16px] text-ink shadow-card outline-none focus:border-ink"
         />
       </label>
 
-      <div className="mb-2 text-sm font-medium text-gray-700">PIN（初期 1206）</div>
-      <div className="mb-4 flex items-center justify-center gap-3" aria-label="PIN桁数">
+      <div className="mb-2 text-center text-[13px] font-medium text-text2">PIN（初期 1206）</div>
+      <div className="mb-6 flex items-center justify-center gap-3" aria-label="PIN桁数">
         {Array.from({ length: Math.max(4, pin.length) }).map((_, i) => (
           <span
             key={i}
-            className={`h-3 w-3 rounded-full ${i < pin.length ? 'bg-nissan' : 'bg-gray-300'}`}
+            className={`h-3 w-3 rounded-full ${i < pin.length ? 'bg-ink' : 'bg-separator'}`}
           />
         ))}
       </div>
 
-      {error && <div className="mb-3 text-center text-sm text-nissan">{error}</div>}
+      {error && <div className="mb-3 text-center text-sm text-overdue">{error}</div>}
 
       <div className="grid grid-cols-3 gap-3">
         {KEYS.map((k, i) =>
@@ -77,7 +81,7 @@ export default function LoginPage() {
               key={i}
               type="button"
               onClick={() => press(k)}
-              className="rounded-xl bg-white py-4 text-xl font-semibold text-gray-800 shadow active:bg-gray-100"
+              className="rounded-[14px] bg-surface py-4 text-xl font-semibold text-ink shadow-card active:bg-tint"
             >
               {k === 'del' ? '⌫' : k}
             </button>
@@ -85,14 +89,14 @@ export default function LoginPage() {
         )}
       </div>
 
-      <button
-        type="button"
+      <Button
+        full
         onClick={submit}
         disabled={busy || pin.length < 4 || !username.trim()}
-        className="mt-6 w-full rounded-xl bg-nissan py-3 text-base font-bold text-white active:opacity-80 disabled:opacity-40"
+        className="mt-6"
       >
         {busy ? '確認中…' : 'ログイン'}
-      </button>
+      </Button>
     </div>
   );
 }
