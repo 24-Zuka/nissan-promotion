@@ -1,14 +1,15 @@
 /**
  * 顧客一覧。  [担当: Sub D — UI]
- * - api.listContacts()。ランク順 → 氏名。新規作成(api.createContact)モーダル。
- * - 行タップで /contacts/:id へ。
+ * - store.listContacts()。ランク順 → 氏名。新規作成モーダル。検索（氏名/電話/メール）。
+ * - ランク（A〜D）ごとにグループ化（mono 見出し）。行タップで /contacts/:id へ。
  */
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { RANKS, RANK_ORDER, type Contact, type ContactCreateInput, type Rank } from '@crm/shared';
+import { RANKS, type Contact, type ContactCreateInput, type Rank } from '@crm/shared';
 import * as store from '../lib/store.js';
-import AppHeader from '../components/AppHeader.js';
+import Screen from '../components/Screen.js';
+import { Button, Card, SectionLabel } from '../components/ui.js';
 import RankBadge from '../components/RankBadge.js';
 import Modal from '../components/Modal.js';
 import { Field, Select, TextInput } from '../components/Field.js';
@@ -16,57 +17,85 @@ import { Field, Select, TextInput } from '../components/Field.js';
 export default function ContactsPage() {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [q, setQ] = useState('');
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['contacts'],
     queryFn: () => store.listContacts(),
   });
 
-  const sorted = [...(data ?? [])].sort((a, b) => {
-    const r = RANK_ORDER[a.rank] - RANK_ORDER[b.rank];
-    return r !== 0 ? r : a.name.localeCompare(b.name, 'ja');
+  const needle = q.trim().toLowerCase();
+  const filtered = (data ?? []).filter((c) => {
+    if (!needle) return true;
+    return [c.name, c.phone, c.email].some((v) => v?.toLowerCase().includes(needle));
   });
 
-  return (
-    <div className="min-h-screen pb-10">
-      <AppHeader
-        title="顧客一覧"
-        back="/"
-        right={
-          <button type="button" onClick={() => setOpen(true)} className="text-sm font-bold text-nissan">
-            ＋新規顧客
-          </button>
-        }
-      />
+  const byRank = (r: Rank) =>
+    filtered.filter((c) => c.rank === r).sort((a, b) => a.name.localeCompare(b.name, 'ja'));
 
-      {isLoading && <div className="p-6 text-center text-gray-500">読み込み中…</div>}
-      {isError && <div className="p-6 text-center text-nissan">読み込みに失敗しました。</div>}
+  const addButton = (
+    <button
+      type="button"
+      onClick={() => setOpen(true)}
+      aria-label="新規顧客"
+      className="grid h-9 w-9 place-items-center rounded-full bg-tint text-2xl font-light leading-none text-ink active:bg-tint-strong"
+    >
+      +
+    </button>
+  );
+
+  return (
+    <Screen title="顧客" action={addButton}>
+      {/* 検索 */}
+      <div className="mb-4 flex items-center gap-2 rounded-[10px] bg-surface px-3 py-2.5 shadow-card">
+        <span className="text-text3">⌕</span>
+        <input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="検索"
+          className="w-full bg-transparent text-[15px] text-ink outline-none placeholder:text-text3"
+        />
+      </div>
+
+      {isLoading && <div className="py-10 text-center text-text2">読み込み中…</div>}
+      {isError && <div className="py-10 text-center text-overdue">読み込みに失敗しました。</div>}
 
       {!isLoading && !isError && (
-        <div className="p-4">
-          {sorted.length === 0 ? (
-            <div className="rounded-xl bg-white p-8 text-center text-gray-500 shadow-sm">
-              顧客が登録されていません。
-            </div>
+        <div className="space-y-5">
+          {filtered.length === 0 ? (
+            <Card className="px-6 py-12">
+              <div className="text-center text-text2">
+                {needle ? '該当する顧客がいません。' : '顧客が登録されていません。'}
+              </div>
+            </Card>
           ) : (
-            <div className="overflow-hidden rounded-xl shadow-sm">
-              {sorted.map((c: Contact) => (
-                <Link
-                  key={c.id}
-                  to={`/contacts/${c.id}`}
-                  className="flex items-center gap-3 border-b border-gray-100 bg-white px-4 py-3 last:border-b-0 active:bg-gray-50"
-                >
-                  <RankBadge rank={c.rank} />
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate font-semibold text-gray-900">{c.name}</div>
-                    {(c.phone || c.email) && (
-                      <div className="truncate text-xs text-gray-500">{c.phone ?? c.email}</div>
-                    )}
-                  </div>
-                  <span className="text-gray-300">›</span>
-                </Link>
-              ))}
-            </div>
+            RANKS.map((r) => {
+              const list = byRank(r);
+              if (list.length === 0) return null;
+              return (
+                <section key={r}>
+                  <SectionLabel>RANK {r}</SectionLabel>
+                  <Card>
+                    {list.map((c: Contact) => (
+                      <Link
+                        key={c.id}
+                        to={`/contacts/${c.id}`}
+                        className="flex items-center gap-3 border-b border-separator px-4 py-3 last:border-b-0 active:bg-tint"
+                      >
+                        <RankBadge rank={c.rank} size={26} />
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-[15px] font-medium text-ink">{c.name}</div>
+                          {(c.phone || c.email) && (
+                            <div className="truncate text-xs text-text2">{c.phone ?? c.email}</div>
+                          )}
+                        </div>
+                        <span className="text-text3">›</span>
+                      </Link>
+                    ))}
+                  </Card>
+                </section>
+              );
+            })
           )}
         </div>
       )}
@@ -79,7 +108,7 @@ export default function ContactsPage() {
           setOpen(false);
         }}
       />
-    </div>
+    </Screen>
   );
 }
 
@@ -139,16 +168,11 @@ function NewContactModal({
         <TextInput value={email} onChange={(e) => setEmail(e.target.value)} inputMode="email" />
       </Field>
 
-      {create.isError && <div className="mb-2 text-sm text-nissan">登録に失敗しました。</div>}
+      {create.isError && <div className="mb-2 text-sm text-overdue">登録に失敗しました。</div>}
 
-      <button
-        type="button"
-        onClick={submit}
-        disabled={!name.trim() || create.isPending}
-        className="mt-2 w-full rounded-xl bg-nissan py-3 font-bold text-white active:opacity-80 disabled:opacity-40"
-      >
+      <Button full onClick={submit} disabled={!name.trim() || create.isPending} className="mt-2">
         {create.isPending ? '登録中…' : '登録'}
-      </button>
+      </Button>
     </Modal>
   );
 }

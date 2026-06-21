@@ -1,8 +1,7 @@
 /**
  * 設定。  [担当: Sub D — UI / 通知は Sub E と連携 / Phase 3a で通知タイミング編集対応]
- * - 通知ON/OFF・通知タイミング編集(任意の「N日前/当日」)・長期セッション・カレンダー連携(次フェーズ表示)。
- * - 文例テンプレート管理(/templates)への導線。
- * - api.getSettings / api.updateSettings。
+ * - 通知ON/OFF・通知タイミング編集・長期セッション・Google カレンダー連携。
+ * - 文例テンプレート管理(/templates)への導線。大見出し＋mono セクション見出し＋下部タブバー。
  */
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -11,12 +10,9 @@ import type { Setting } from '@crm/shared';
 import * as store from '../lib/store.js';
 import * as gcal from '../lib/gcal.js';
 import { useAuth } from '../lib/auth.js';
-import {
-  getPermission,
-  isNotificationSupported,
-  requestPermission,
-} from '../lib/notifications.js';
-import AppHeader from '../components/AppHeader.js';
+import { getPermission, isNotificationSupported, requestPermission } from '../lib/notifications.js';
+import Screen from '../components/Screen.js';
+import { Button, Card, SectionLabel } from '../components/ui.js';
 
 function offsetLabel(d: number): string {
   return d === 0 ? '当日' : `${d}日前`;
@@ -39,7 +35,7 @@ function Toggle({
       disabled={disabled}
       onClick={() => onChange(!checked)}
       className={`relative h-7 w-12 shrink-0 rounded-full transition-colors disabled:opacity-40 ${
-        checked ? 'bg-nissan' : 'bg-gray-300'
+        checked ? 'bg-ink' : 'bg-separator'
       }`}
     >
       <span
@@ -61,10 +57,10 @@ function Row({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex items-center justify-between gap-3 border-b border-gray-100 px-4 py-4 last:border-b-0">
+    <div className="flex items-center justify-between gap-3 border-b border-separator px-4 py-3.5 last:border-b-0">
       <div className="min-w-0">
-        <div className="font-medium text-gray-900">{title}</div>
-        {desc && <div className="mt-0.5 text-xs text-gray-500">{desc}</div>}
+        <div className="text-[15px] text-ink">{title}</div>
+        {desc && <div className="mt-0.5 text-xs text-text2">{desc}</div>}
       </div>
       {children}
     </div>
@@ -89,72 +85,77 @@ export default function SettingsPage() {
   });
 
   return (
-    <div className="min-h-screen pb-10">
-      <AppHeader title="設定" back="/" />
-
-      {isLoading && <div className="p-6 text-center text-gray-500">読み込み中…</div>}
-      {isError && <div className="p-6 text-center text-nissan">読み込みに失敗しました。</div>}
+    <Screen title="設定">
+      {isLoading && <div className="py-10 text-center text-text2">読み込み中…</div>}
+      {isError && <div className="py-10 text-center text-overdue">読み込みに失敗しました。</div>}
 
       {!isLoading && !isError && data && (
-        <div className="p-4">
-          <div className="overflow-hidden rounded-xl bg-white shadow-sm">
-            <Row title="通知" desc="期限が近いタスクをお知らせします">
-              <Toggle
-                checked={data.notifications_enabled}
+        <div className="space-y-5">
+          <section>
+            <SectionLabel>通知</SectionLabel>
+            <Card>
+              <Row title="通知" desc="期限が近いタスクをお知らせします">
+                <Toggle
+                  checked={data.notifications_enabled}
+                  disabled={update.isPending}
+                  onChange={(v) => update.mutate({ notifications_enabled: v })}
+                />
+              </Row>
+              <NotifyOffsetsRow
+                offsets={data.notify_offsets_days}
                 disabled={update.isPending}
-                onChange={(v) => update.mutate({ notifications_enabled: v })}
+                onChange={(next) => update.mutate({ notify_offsets_days: next })}
               />
-            </Row>
+              <Row title="長期セッション" desc="ログイン状態を長く保持します">
+                <Toggle
+                  checked={data.long_session}
+                  disabled={update.isPending}
+                  onChange={(v) => update.mutate({ long_session: v })}
+                />
+              </Row>
+            </Card>
+            <NotificationPermissionRow enabled={data.notifications_enabled} />
+          </section>
 
-            <NotifyOffsetsRow
-              offsets={data.notify_offsets_days}
-              disabled={update.isPending}
-              onChange={(next) => update.mutate({ notify_offsets_days: next })}
-            />
+          <section>
+            <SectionLabel>Google カレンダー</SectionLabel>
+            <Card>
+              <Row title="連携を有効にする" desc="期限のあるタスクを一方向で書き出します">
+                <Toggle
+                  checked={data.calendar_enabled}
+                  disabled={update.isPending}
+                  onChange={(v) => update.mutate({ calendar_enabled: v })}
+                />
+              </Row>
+            </Card>
+            {data.calendar_enabled && <CalendarPanel />}
+          </section>
 
-            <Row title="長期セッション" desc="ログイン状態を長く保持します">
-              <Toggle
-                checked={data.long_session}
-                disabled={update.isPending}
-                onChange={(v) => update.mutate({ long_session: v })}
-              />
-            </Row>
+          <section>
+            <SectionLabel>テンプレート</SectionLabel>
+            <Card>
+              <Link
+                to="/templates"
+                className="flex items-center justify-between px-4 py-3.5 active:bg-tint"
+              >
+                <div>
+                  <div className="text-[15px] text-ink">文例テンプレート</div>
+                  <div className="mt-0.5 text-xs text-text2">点検案内・営業フォローの定型文を管理</div>
+                </div>
+                <span className="text-text3">›</span>
+              </Link>
+            </Card>
+          </section>
 
-            <Row title="カレンダー連携" desc="Google カレンダーにタスクの予定を書き出します">
-              <Toggle
-                checked={data.calendar_enabled}
-                disabled={update.isPending}
-                onChange={(v) => update.mutate({ calendar_enabled: v })}
-              />
-            </Row>
-          </div>
-
-          {data.calendar_enabled && <CalendarPanel />}
-
-          <NotificationPermissionRow enabled={data.notifications_enabled} />
-
-          <Link
-            to="/templates"
-            className="mt-4 flex items-center justify-between rounded-xl bg-white px-4 py-4 shadow-sm active:bg-gray-50"
-          >
-            <div>
-              <div className="font-medium text-gray-900">文例テンプレート</div>
-              <div className="mt-0.5 text-xs text-gray-500">点検案内・営業フォローの定型文を管理</div>
-            </div>
-            <span className="text-gray-300">›</span>
-          </Link>
-
-          <div className="mt-6 px-1 text-xs text-gray-500">ログイン中: {username ?? '—'}</div>
-          <button
-            type="button"
-            onClick={() => logout()}
-            className="mt-2 w-full rounded-xl border border-gray-300 bg-white py-3 font-medium text-gray-700 active:bg-gray-50"
-          >
-            ログアウト
-          </button>
+          <section>
+            <div className="mb-2 px-1 text-xs text-text3">ログイン中: {username ?? '—'}</div>
+            <Button variant="outline" full onClick={() => logout()}>
+              ログアウト
+            </Button>
+          </section>
         </div>
       )}
-    </div>
+    </Screen>
   );
 }
 
@@ -185,22 +186,22 @@ function NotifyOffsetsRow({
   const removeAt = (d: number) => onChange(offsets.filter((o) => o !== d));
 
   return (
-    <div className="border-b border-gray-100 px-4 py-4 last:border-b-0">
-      <div className="font-medium text-gray-900">通知タイミング</div>
-      <div className="mt-0.5 text-xs text-gray-500">期限の何日前に通知するか（0=当日）</div>
+    <div className="border-b border-separator px-4 py-3.5 last:border-b-0">
+      <div className="text-[15px] text-ink">通知タイミング</div>
+      <div className="mt-0.5 text-xs text-text2">期限の何日前に通知するか（0=当日）</div>
 
-      <div className="mt-2 flex flex-wrap gap-1">
-        {sorted.length === 0 && <span className="text-xs text-gray-400">未設定</span>}
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {sorted.length === 0 && <span className="text-xs text-text3">未設定</span>}
         {sorted.map((d) => (
           <button
             key={d}
             type="button"
             disabled={disabled}
             onClick={() => removeAt(d)}
-            className="flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600 active:bg-gray-200 disabled:opacity-40"
+            className="flex items-center gap-1 rounded-md bg-tint px-2.5 py-1 text-xs font-semibold text-ink active:bg-tint-strong disabled:opacity-40"
           >
             {offsetLabel(d)}
-            <span className="text-gray-400">×</span>
+            <span className="text-text3">×</span>
           </button>
         ))}
       </div>
@@ -220,16 +221,11 @@ function NotifyOffsetsRow({
             }
           }}
           placeholder="日数"
-          className="w-24 rounded-lg border border-gray-300 px-3 py-1.5 text-sm outline-none focus:border-nissan focus:ring-1 focus:ring-nissan"
+          className="w-24 rounded-[10px] border border-transparent bg-grouped px-3 py-1.5 text-sm text-ink outline-none placeholder:text-text3 focus:border-ink"
         />
-        <button
-          type="button"
-          onClick={add}
-          disabled={disabled || value === ''}
-          className="rounded-lg bg-nissan px-3 py-1.5 text-sm font-medium text-white active:opacity-80 disabled:opacity-40"
-        >
+        <Button variant="secondary" onClick={add} disabled={disabled || value === ''} className="px-3 py-1.5 text-sm">
           追加
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -283,55 +279,45 @@ function CalendarPanel() {
   };
 
   return (
-    <div className="mt-3 rounded-xl bg-white p-4 shadow-sm">
-      <div className="text-sm font-bold text-gray-700">Google カレンダー設定</div>
-      <p className="mt-1 text-xs text-gray-500">
+    <div className="mt-2.5 rounded-card bg-surface p-4 shadow-card">
+      <div className="flex items-center gap-2">
+        <span className={`h-2.5 w-2.5 rounded-full ${connected ? 'bg-done' : 'bg-text3'}`} />
+        <div className="text-[13px] font-semibold text-text2">
+          {connected ? '接続済み' : '未接続'}
+        </div>
+      </div>
+      <p className="mt-1.5 text-xs text-text2">
         Google Cloud で作成した OAuth クライアント ID を貼り付けてください（作成手順は
         docs/CALENDAR.md）。期限のあるタスクが終日予定として書き出されます。
       </p>
 
       <label className="mt-3 block">
-        <span className="mb-1 block text-xs font-medium text-gray-600">OAuth クライアント ID</span>
+        <span className="mb-1 block text-xs font-medium text-text2">OAuth クライアント ID</span>
         <input
           value={clientId}
           onChange={(e) => setClientId(e.target.value)}
           placeholder="xxxxxxxx.apps.googleusercontent.com"
           autoCapitalize="none"
           autoCorrect="off"
-          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-nissan focus:ring-1 focus:ring-nissan"
+          className="w-full rounded-[10px] border border-transparent bg-grouped px-3 py-2 text-sm text-ink outline-none placeholder:text-text3 focus:border-ink"
         />
       </label>
 
-      <div className="mt-2 flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={save}
-          disabled={!clientId.trim() || saved}
-          className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 active:bg-gray-50 disabled:opacity-40"
-        >
+      <div className="mt-2.5 flex flex-wrap gap-2">
+        <Button variant="outline" onClick={save} disabled={!clientId.trim() || saved} className="px-3 py-1.5 text-sm">
           {saved ? '保存済み' : 'Client ID を保存'}
-        </button>
-        <button
-          type="button"
-          onClick={connect}
-          disabled={!saved || busy}
-          className="rounded-lg border border-nissan bg-white px-3 py-1.5 text-sm font-bold text-nissan active:bg-red-50 disabled:opacity-40"
-        >
+        </Button>
+        <Button variant="outline" onClick={connect} disabled={!saved || busy} className="px-3 py-1.5 text-sm">
           {connected ? '接続済み ✓' : 'Google と接続'}
-        </button>
-        <button
-          type="button"
-          onClick={sync}
-          disabled={!saved || busy}
-          className="rounded-lg bg-nissan px-3 py-1.5 text-sm font-bold text-white active:opacity-80 disabled:opacity-40"
-        >
+        </Button>
+        <Button onClick={sync} disabled={!saved || busy} className="px-3 py-1.5 text-sm">
           {busy ? '同期中…' : '今すぐ同期'}
-        </button>
+        </Button>
       </div>
 
-      {status && <div className="mt-2 text-xs text-gray-600">{status}</div>}
+      {status && <div className="mt-2 text-xs text-text2">{status}</div>}
       {lastSync && (
-        <div className="mt-1 text-xs text-gray-400">
+        <div className="mt-1 font-mono text-xs text-text3">
           最終同期: {new Date(lastSync).toLocaleString('ja-JP')}
         </div>
       )}
@@ -352,23 +338,17 @@ function NotificationPermissionRow({ enabled }: { enabled: boolean }) {
   };
 
   return (
-    <div className="mt-3 rounded-xl bg-amber-50 px-4 py-3">
-      <div className="text-sm font-medium text-amber-800">
-        通知の許可が必要です
-      </div>
-      <p className="mt-1 text-xs text-amber-700">
+    <div className="mt-2.5 rounded-card border border-separator bg-surface px-4 py-3 shadow-card">
+      <div className="text-sm font-semibold text-today">通知の許可が必要です</div>
+      <p className="mt-1 text-xs text-text2">
         {perm === 'denied'
           ? 'ブラウザの設定から通知を許可してください。'
           : 'タスクの期限通知を受け取るには、ブラウザの通知を許可してください。'}
       </p>
       {perm !== 'denied' && (
-        <button
-          type="button"
-          onClick={ask}
-          className="mt-2 rounded-lg bg-amber-600 px-4 py-1.5 text-xs font-medium text-white active:opacity-80"
-        >
+        <Button onClick={ask} className="mt-2 px-3 py-1.5 text-xs">
           通知を許可する
-        </button>
+        </Button>
       )}
     </div>
   );

@@ -56,41 +56,43 @@ export default function TemplatesPage() {
           <button
             type="button"
             onClick={() => setCreating(true)}
-            className="text-sm font-bold text-nissan"
+            className="text-[15px] font-semibold text-ink active:opacity-60"
           >
             ＋新規
           </button>
         }
       />
 
-      {isLoading && <div className="p-6 text-center text-gray-500">読み込み中…</div>}
-      {isError && <div className="p-6 text-center text-nissan">読み込みに失敗しました。</div>}
+      {isLoading && <div className="p-6 text-center text-text2">読み込み中…</div>}
+      {isError && <div className="p-6 text-center text-overdue">読み込みに失敗しました。</div>}
 
       {!isLoading && !isError && (
-        <div className="space-y-5 p-4">
+        <div className="mx-auto max-w-content space-y-5 p-4">
           {TEMPLATE_CATEGORIES.map((cat) => {
             const list = byCategory(cat);
             return (
               <section key={cat}>
-                <h2 className="mb-2 px-1 text-sm font-bold text-gray-700">{CATEGORY_LABEL[cat]}</h2>
+                <div className="mb-1.5 px-1 font-mono text-[11px] uppercase tracking-[0.04em] text-text3">
+                  {CATEGORY_LABEL[cat]}
+                </div>
                 {list.length === 0 ? (
-                  <div className="rounded-xl bg-white p-5 text-center text-sm text-gray-400 shadow-sm">
+                  <div className="rounded-card bg-surface p-5 text-center text-sm text-text3 shadow-card">
                     テンプレートはありません。
                   </div>
                 ) : (
-                  <div className="overflow-hidden rounded-xl shadow-sm">
+                  <div className="overflow-hidden rounded-card shadow-card">
                     {list.map((t) => (
                       <div
                         key={t.id}
-                        className="border-b border-gray-100 bg-white px-4 py-3 last:border-b-0"
+                        className="border-b border-separator bg-surface px-4 py-3 last:border-b-0"
                       >
                         <div className="flex items-center justify-between gap-2">
-                          <div className="truncate font-semibold text-gray-900">{t.name}</div>
+                          <div className="truncate text-[15px] font-medium text-ink">{t.name}</div>
                           <div className="flex shrink-0 gap-3 text-sm">
                             <button
                               type="button"
                               onClick={() => setEditing(t)}
-                              className="font-medium text-nissan"
+                              className="font-semibold text-ink active:opacity-60"
                             >
                               編集
                             </button>
@@ -99,13 +101,13 @@ export default function TemplatesPage() {
                               onClick={() => {
                                 if (confirm(`「${t.name}」を削除しますか？`)) remove.mutate(t.id);
                               }}
-                              className="font-medium text-gray-400"
+                              className="font-semibold text-overdue active:opacity-60"
                             >
                               削除
                             </button>
                           </div>
                         </div>
-                        <p className="mt-1 line-clamp-2 whitespace-pre-wrap text-xs text-gray-500">
+                        <p className="mt-1 line-clamp-2 whitespace-pre-wrap text-xs text-text2">
                           {t.body}
                         </p>
                       </div>
@@ -116,7 +118,7 @@ export default function TemplatesPage() {
             );
           })}
 
-          <p className="px-1 text-xs text-gray-400">
+          <p className="px-1 text-xs text-text3">
             本文に {TEMPLATE_TOKENS.map(tokenTag).join(' ')} を入れると、顧客詳細の「文面生成」で
             実際の値に差し込めます。
           </p>
@@ -208,20 +210,20 @@ function TemplateForm({
             key={t}
             type="button"
             onClick={() => insertToken(tokenTag(t))}
-            className="rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-600 active:bg-gray-200"
+            className="rounded-full bg-tint px-2.5 py-1 text-xs font-medium text-ink active:bg-tint-strong"
           >
             ＋{t}
           </button>
         ))}
       </div>
 
-      {save.isError && <div className="mb-2 text-sm text-nissan">保存に失敗しました。</div>}
+      {save.isError && <div className="mb-2 text-sm text-overdue">保存に失敗しました。</div>}
 
       <button
         type="button"
         onClick={submit}
         disabled={!name.trim() || !body.trim() || save.isPending}
-        className="mt-1 w-full rounded-xl bg-nissan py-3 font-bold text-white active:opacity-80 disabled:opacity-40"
+        className="mt-1 w-full rounded-xl bg-ink py-3 font-semibold text-on-ink active:opacity-80 disabled:opacity-40"
       >
         {save.isPending ? '保存中…' : '保存'}
       </button>

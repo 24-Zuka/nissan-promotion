@@ -1,12 +1,11 @@
 /**
- * ホーム（今日やること）。  [担当: Sub D — UI / 仕様3.1]
+ * ホーム（今日のフォロー）。  [担当: Sub D — UI / 仕様3.1]
  * - api.listTasks({status:'open'}) を取得し、shared の compareHomeTasks / bucketFor で
- *   期限切れ(赤)→今日(橙)→近日(青) に分類。各バケット内はランクA優先・期限昇順。
- * - ワンタップ完了: api.completeTask(id)（楽観更新 → invalidate）。
- * - ヘッダに 顧客一覧/設定 への導線。
+ *   期限切れ→今日→近日 に分類。各バケット内はランクA優先・期限昇順。
+ * - ワンタップ完了: store.completeTask（楽観更新 → invalidate）。
+ * - 大見出し＋日付、バケットは色付きドット＋ラベル＋件数。導線は下部タブバー。
  */
 import { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   bucketFor,
@@ -18,16 +17,30 @@ import {
 import type { TaskWithContact } from '../lib/api.js';
 import * as store from '../lib/store.js';
 import { scheduleNotifications } from '../lib/notifications.js';
-import AppHeader from '../components/AppHeader.js';
+import Screen from '../components/Screen.js';
+import { Card } from '../components/ui.js';
 import TaskRow from '../components/TaskRow.js';
 
 const tasksKey = ['tasks', { status: 'open' }] as const;
 
-const SECTIONS: { bucket: DueBucket; label: string; color: string }[] = [
-  { bucket: 'overdue', label: '期限切れ', color: 'text-nissan' },
-  { bucket: 'today', label: '今日', color: 'text-orange-600' },
-  { bucket: 'soon', label: '近日', color: 'text-blue-600' },
+const SECTIONS: { bucket: DueBucket; label: string; dot: string; text: string }[] = [
+  { bucket: 'overdue', label: '期限切れ', dot: 'bg-overdue', text: 'text-overdue' },
+  { bucket: 'today', label: '今日', dot: 'bg-today', text: 'text-today' },
+  { bucket: 'soon', label: '近日', dot: 'bg-text3', text: 'text-text2' },
 ];
+
+function todayLabel(): string {
+  try {
+    return new Intl.DateTimeFormat('ja-JP', {
+      timeZone: 'Asia/Tokyo',
+      month: 'long',
+      day: 'numeric',
+      weekday: 'short',
+    }).format(new Date());
+  } catch {
+    return todayInTokyo();
+  }
+}
 
 export default function HomePage() {
   const queryClient = useQueryClient();
@@ -91,36 +104,23 @@ export default function HomePage() {
   const laterTasks = byBucket('later');
 
   return (
-    <div className="min-h-screen pb-10">
-      <AppHeader
-        title="今日のタスク"
-        right={
-          <>
-            <Link to="/contacts" className="text-sm font-medium text-nissan">
-              顧客一覧
-            </Link>
-            <Link to="/settings" className="text-sm font-medium text-gray-500">
-              設定
-            </Link>
-          </>
-        }
-      />
-
-      {isLoading && <div className="p-6 text-center text-gray-500">読み込み中…</div>}
-      {isError && <div className="p-6 text-center text-nissan">読み込みに失敗しました。</div>}
+    <Screen title="今日のフォロー" subtitle={todayLabel()}>
+      {isLoading && <div className="py-10 text-center text-text2">読み込み中…</div>}
+      {isError && <div className="py-10 text-center text-overdue">読み込みに失敗しました。</div>}
 
       {!isLoading && !isError && (
-        <div className="space-y-5 p-4">
+        <div className="space-y-5">
           {SECTIONS.map((s) => {
             const list = byBucket(s.bucket);
             if (list.length === 0) return null;
             return (
               <section key={s.bucket}>
-                <h2 className={`mb-2 px-1 text-sm font-bold ${s.color}`}>
-                  {s.label}
-                  <span className="ml-2 font-normal text-gray-400">{list.length}件</span>
-                </h2>
-                <div className="overflow-hidden rounded-xl shadow-sm">
+                <div className="mb-2 flex items-center gap-1.5 px-1">
+                  <span className={`h-[7px] w-[7px] rounded-full ${s.dot}`} />
+                  <span className={`text-[13px] font-semibold ${s.text}`}>{s.label}</span>
+                  <span className="text-[13px] text-text3">{list.length}</span>
+                </div>
+                <Card>
                   {list.map((t) => (
                     <TaskRow
                       key={t.id}
@@ -129,15 +129,15 @@ export default function HomePage() {
                       completing={complete.isPending}
                     />
                   ))}
-                </div>
+                </Card>
               </section>
             );
           })}
 
           {sorted.length === 0 && (
-            <div className="rounded-xl bg-white p-8 text-center text-gray-500 shadow-sm">
-              対応が必要なタスクはありません。
-            </div>
+            <Card className="px-6 py-12">
+              <div className="text-center text-text2">対応が必要なタスクはありません。</div>
+            </Card>
           )}
 
           {laterTasks.length > 0 && (
@@ -145,12 +145,12 @@ export default function HomePage() {
               <button
                 type="button"
                 onClick={() => setShowLater((v) => !v)}
-                className="mb-2 px-1 text-sm font-medium text-gray-500"
+                className="mb-2 px-1 text-[13px] font-medium text-text2 active:opacity-60"
               >
-                {showLater ? '▾' : '▸'} それ以降（{laterTasks.length}件）
+                {showLater ? '▾' : '▸'} それ以降（{laterTasks.length}）
               </button>
               {showLater && (
-                <div className="overflow-hidden rounded-xl shadow-sm">
+                <Card>
                   {laterTasks.map((t) => (
                     <TaskRow
                       key={t.id}
@@ -159,12 +159,12 @@ export default function HomePage() {
                       completing={complete.isPending}
                     />
                   ))}
-                </div>
+                </Card>
               )}
             </section>
           )}
         </div>
       )}
-    </div>
+    </Screen>
   );
 }

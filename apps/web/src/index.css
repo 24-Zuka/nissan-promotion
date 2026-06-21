@@ -2,12 +2,68 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * デザイントークン（仕様書 v1.0 準拠 / 無彩色ベース・Light/Dark）。
+ * 意味は色ではなく濃淡で伝える。アクセントは Ink（無彩色）一色。
+ * Light/Dark は OS の prefers-color-scheme に自動追従する。
+ */
 :root {
-  color-scheme: light;
+  color-scheme: light dark;
+
+  --bg: #f2f2f7; /* 背景 / Grouped */
+  --surface: #ffffff; /* 面 / Card */
+  --surface-2: #ffffff; /* 面 / Elevated */
+  --ink: #1d1d1f; /* 文字・主 / 唯一のアクセント（塗り） */
+  --on-ink: #ffffff; /* Ink 塗りの上の文字 */
+  --text-2: #6e6e73; /* 文字・副 */
+  --text-3: #aeaeb2; /* 文字・補助 / メタ */
+  --separator: #e5e5ea; /* 区切り線 */
+  --tint: rgba(29, 29, 31, 0.06); /* 選択背景 / 副アクション */
+  --tint-strong: rgba(29, 29, 31, 0.1);
+  --chrome: rgba(248, 248, 250, 0.8); /* ナビ/タブの Vibrancy 背景 */
+  --overdue: #c2453e; /* 期限切れ / 削除 */
+  --today: #b7791f; /* 今日 / 要注意 */
+  --done: #3a8e5e; /* 完了 / 同期OK */
+  --rank-b: #6e6e73;
+  --rank-c: #e5e5ea;
+  --rank-c-ink: #1d1d1f;
+  --rank-d-border: #c7c7cc;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #000000;
+    --surface: #1c1c1e;
+    --surface-2: #2c2c2e;
+    --ink: #f5f5f7;
+    --on-ink: #000000;
+    --text-2: #98989d;
+    --text-3: #636366;
+    --separator: #2c2c2e;
+    --tint: rgba(245, 245, 247, 0.1);
+    --tint-strong: rgba(245, 245, 247, 0.16);
+    --chrome: rgba(28, 28, 30, 0.8);
+    --overdue: #ff6961;
+    --today: #e8b339;
+    --done: #5bc47e;
+    --rank-b: #98989d;
+    --rank-c: #3a3a3c;
+    --rank-c-ink: #f5f5f7;
+    --rank-d-border: #48484a;
+  }
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
 }
 
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Yu Gothic UI', sans-serif;
-  background: #f5f5f5;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Hiragino Sans',
+    'Hiragino Kaku Gothic ProN', 'Noto Sans JP', 'Yu Gothic UI', sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  line-height: 1.5;
 }

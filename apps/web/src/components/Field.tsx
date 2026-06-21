@@ -1,10 +1,11 @@
 /**
  * フォーム用の汎用フィールド（label + input/select 等）。
+ * 入力は淡い面（grouped）に角丸、フォーカスで 2px Ink の枠（仕様書 06 コンポーネント）。
  */
 import type { ReactNode } from 'react';
 
 const baseInput =
-  'w-full rounded-lg border border-gray-300 px-3 py-2 text-base outline-none focus:border-nissan focus:ring-1 focus:ring-nissan';
+  'w-full rounded-[10px] border border-transparent bg-grouped px-3.5 py-3 text-[16px] text-ink outline-none placeholder:text-text3 focus:border-ink';
 
 export function Field({
   label,
@@ -16,10 +17,10 @@ export function Field({
   children: ReactNode;
 }) {
   return (
-    <label className="mb-3 block">
-      <span className="mb-1 block text-sm font-medium text-gray-700">
+    <label className="mb-3.5 block">
+      <span className="mb-1.5 block text-[13px] font-medium text-text2">
         {label}
-        {required && <span className="ml-1 text-nissan">*</span>}
+        {required && <span className="ml-1 text-overdue">*</span>}
       </span>
       {children}
     </label>
@@ -35,5 +36,5 @@ export function TextArea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement
 }
 
 export function Select(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
-  return <select {...props} className={`${baseInput} bg-white ${props.className ?? ''}`} />;
+  return <select {...props} className={`${baseInput} ${props.className ?? ''}`} />;
 }
