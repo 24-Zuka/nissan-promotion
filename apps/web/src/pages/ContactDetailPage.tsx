@@ -6,21 +6,24 @@
  * - 「車両追加」: api.createVehicle（generate_maintenance チェックでメンテ自動生成）。
  */
 import { useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   INSPECTION_PROFILES,
   INSPECTION_PROFILE_LABEL,
   isMaintenanceTaskType,
+  RANKS,
   renderTemplate,
   TASK_TYPE,
   TASK_TYPE_LABEL,
   todayInTokyo,
   VEHICLE_CONDITIONS,
   type Contact,
+  type ContactCreateInput,
   type InspectionProfile,
   type Note,
   type NoteCreateInput,
+  type Rank,
   type TaskCreateInput,
   type TaskType,
   type Template,
@@ -46,8 +49,11 @@ const OPTIONAL_FIELDS: { key: keyof Contact; label: string }[] = [
 
 export default function ContactDetailPage() {
   const { id = '' } = useParams();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [modal, setModal] = useState<null | 'note' | 'task' | 'vehicle' | 'message'>(null);
+  const [modal, setModal] = useState<
+    null | 'note' | 'task' | 'vehicle' | 'message' | 'edit' | 'delete'
+  >(null);
 
   const contactQ = useQuery({ queryKey: ['contact', id], queryFn: () => store.getContact(id) });
   const vehiclesQ = useQuery({ queryKey: ['vehicles', id], queryFn: () => store.listVehicles(id) });
@@ -67,7 +73,24 @@ export default function ContactDetailPage() {
 
   return (
     <div className="min-h-screen pb-10">
-      <AppHeader title={c?.name ?? '顧客詳細'} back="/contacts" right={c && <RankBadge rank={c.rank} />} />
+      <AppHeader
+        title={c?.name ?? '顧客詳細'}
+        back="/contacts"
+        right={
+          c && (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setModal('edit')}
+                className="text-sm font-bold text-nissan"
+              >
+                編集
+              </button>
+              <RankBadge rank={c.rank} />
+            </div>
+          )
+        }
+      />
 
       {contactQ.isLoading && <div className="p-6 text-center text-gray-500">読み込み中…</div>}
       {contactQ.isError && <div className="p-6 text-center text-nissan">読み込みに失敗しました。</div>}
@@ -160,6 +183,15 @@ export default function ContactDetailPage() {
               <Empty>メモはまだありません。</Empty>
             )}
           </Section>
+
+          {/* 削除 */}
+          <button
+            type="button"
+            onClick={() => setModal('delete')}
+            className="w-full rounded-xl border border-red-200 bg-white py-2.5 text-sm font-bold text-red-600 active:bg-red-50"
+          >
+            この顧客を削除
+          </button>
         </div>
       )}
 
@@ -194,7 +226,152 @@ export default function ContactDetailPage() {
           onClose={close}
         />
       )}
+      {modal === 'edit' && c && (
+        <EditModal
+          contact={c}
+          onClose={close}
+          onDone={() => invalidate([['contact', id], ['contacts'], ['tasks']])}
+        />
+      )}
+      {modal === 'delete' && c && (
+        <DeleteModal
+          contactName={c.name}
+          onClose={close}
+          onDeleted={() => {
+            queryClient.invalidateQueries({ queryKey: ['contacts'] });
+            navigate('/contacts');
+          }}
+          deleteFn={() => store.deleteContact(id)}
+        />
+      )}
     </div>
+  );
+}
+
+/* ---------- 顧客編集（ランク・氏名・連絡先・任意項目） ---------- */
+
+function EditModal({
+  contact,
+  onClose,
+  onDone,
+}: {
+  contact: Contact;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const [name, setName] = useState(contact.name);
+  const [rank, setRank] = useState<Rank>(contact.rank);
+  const [phone, setPhone] = useState(contact.phone ?? '');
+  const [email, setEmail] = useState(contact.email ?? '');
+  const [optional, setOptional] = useState<Record<string, string>>(() =>
+    Object.fromEntries(
+      OPTIONAL_FIELDS.map((f) => [f.key as string, (contact[f.key] as string | null) ?? '']),
+    ),
+  );
+
+  const update = useMutation({
+    mutationFn: (input: Partial<ContactCreateInput>) => store.updateContact(contact.id, input),
+    onSuccess: onDone,
+  });
+
+  const submit = () => {
+    if (!name.trim()) return;
+    const input: Partial<ContactCreateInput> = {
+      name: name.trim(),
+      rank,
+      phone: phone.trim() || undefined,
+      email: email.trim() || undefined,
+    };
+    for (const f of OPTIONAL_FIELDS) {
+      (input as Record<string, unknown>)[f.key as string] = optional[f.key as string]?.trim() || undefined;
+    }
+    update.mutate(input);
+  };
+
+  return (
+    <Modal open title="顧客を編集" onClose={onClose}>
+      <Field label="氏名" required>
+        <TextInput value={name} onChange={(e) => setName(e.target.value)} />
+      </Field>
+      <Field label="ランク" required>
+        <Select value={rank} onChange={(e) => setRank(e.target.value as Rank)}>
+          {RANKS.map((r) => (
+            <option key={r} value={r}>
+              {r}
+            </option>
+          ))}
+        </Select>
+      </Field>
+      <Field label="電話番号">
+        <TextInput value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" />
+      </Field>
+      <Field label="メール">
+        <TextInput value={email} onChange={(e) => setEmail(e.target.value)} inputMode="email" />
+      </Field>
+      {OPTIONAL_FIELDS.map((f) => (
+        <Field key={f.key as string} label={f.label}>
+          <TextInput
+            value={optional[f.key as string] ?? ''}
+            onChange={(e) =>
+              setOptional((prev) => ({ ...prev, [f.key as string]: e.target.value }))
+            }
+          />
+        </Field>
+      ))}
+
+      {update.isError && <div className="mb-2 text-sm text-nissan">保存に失敗しました。</div>}
+
+      <button
+        type="button"
+        onClick={submit}
+        disabled={!name.trim() || update.isPending}
+        className="mt-1 w-full rounded-xl bg-nissan py-3 font-bold text-white active:opacity-80 disabled:opacity-40"
+      >
+        {update.isPending ? '保存中…' : '保存'}
+      </button>
+    </Modal>
+  );
+}
+
+/* ---------- 顧客削除（確認） ---------- */
+
+function DeleteModal({
+  contactName,
+  onClose,
+  onDeleted,
+  deleteFn,
+}: {
+  contactName: string;
+  onClose: () => void;
+  onDeleted: () => void;
+  deleteFn: () => Promise<void>;
+}) {
+  const del = useMutation({ mutationFn: deleteFn, onSuccess: onDeleted });
+
+  return (
+    <Modal open title="顧客を削除" onClose={onClose}>
+      <p className="mb-4 text-sm text-gray-700">
+        「{contactName}」を削除します。一覧から消え、関連情報も表示されなくなります。
+      </p>
+      {del.isError && <div className="mb-2 text-sm text-nissan">削除に失敗しました。</div>}
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={onClose}
+          className="flex-1 rounded-xl border border-gray-300 bg-white py-3 font-bold text-gray-700 active:bg-gray-50"
+        >
+          キャンセル
+        </button>
+        <button
+          type="button"
+          onClick={() => del.mutate()}
+          disabled={del.isPending}
+          className="flex-1 rounded-xl bg-red-600 py-3 font-bold text-white active:opacity-80 disabled:opacity-40"
+        >
+          {del.isPending ? '削除中…' : '削除する'}
+        </button>
+      </div>
+    </Modal>
   );
 }
 
