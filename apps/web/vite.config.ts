@@ -2,7 +2,12 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
+// GitHub Pages はリポジトリ名のサブパス配信（例: /nissan-promotion/）。
+// ビルド時に BASE_PATH を渡す。dev / サーバー併用ビルドでは既定の '/'。
+const base = process.env.BASE_PATH ?? '/';
+
 export default defineConfig({
+  base,
   plugins: [
     react(),
     VitePWA({
@@ -14,7 +19,8 @@ export default defineConfig({
         theme_color: '#c3002f',
         background_color: '#ffffff',
         display: 'standalone',
-        start_url: '/',
+        start_url: base,
+        scope: base,
         icons: [],
       },
     }),

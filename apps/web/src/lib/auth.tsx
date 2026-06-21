@@ -7,6 +7,10 @@ import { api } from './api.js';
 import { tokens } from './tokens.js';
 import { startSyncLoop, SYNC_EVENT } from './sync.js';
 import { clearLocalData } from './db.js';
+import { STATIC_MODE } from './config.js';
+import { verifyPin } from './localAuth.js';
+
+const SESSION_KEY = 'crm.session';
 
 interface AuthState {
   isAuthed: boolean;
@@ -18,8 +22,12 @@ interface AuthState {
 const AuthContext = createContext<AuthState | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [isAuthed, setIsAuthed] = useState<boolean>(!!tokens.access);
-  const [username, setUsername] = useState<string | null>(null);
+  const [isAuthed, setIsAuthed] = useState<boolean>(
+    STATIC_MODE ? localStorage.getItem(SESSION_KEY) === '1' : !!tokens.access,
+  );
+  const [username, setUsername] = useState<string | null>(
+    STATIC_MODE && localStorage.getItem(SESSION_KEY) === '1' ? 'kai' : null,
+  );
   const queryClient = useQueryClient();
 
   // 認証中は差分同期ループを回す（オンライン復帰/フォアグラウンド/一定間隔）。
@@ -37,11 +45,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [queryClient]);
 
   const login = async (u: string, pin: string) => {
+    if (STATIC_MODE) {
+      // サーバー無し: ブラウザ内でローカル PIN 照合。
+      const ok = await verifyPin(pin);
+      if (!ok) throw new Error('invalid_pin');
+      localStorage.setItem(SESSION_KEY, '1');
+      setUsername(u.trim() || 'kai');
+      setIsAuthed(true);
+      return;
+    }
     const res = await api.login(u, pin);
     setUsername(res.user_profile.username);
     setIsAuthed(true);
   };
   const logout = async () => {
+    if (STATIC_MODE) {
+      // 静的モードでは IndexedDB が唯一のデータ源。ログアウトでデータは消さない（鍵を外すだけ）。
+      localStorage.removeItem(SESSION_KEY);
+      setUsername(null);
+      setIsAuthed(false);
+      return;
+    }
     await api.logout();
     await clearLocalData();
     setUsername(null);
