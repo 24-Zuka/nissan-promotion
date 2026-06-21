@@ -192,6 +192,26 @@ export async function createContact(
   return entity as unknown as Contact;
 }
 
+export async function updateContact(
+  id: string,
+  input: Partial<ContactCreateInput>,
+): Promise<void> {
+  await enqueueWrite('contacts', 'update', {
+    id,
+    ...input,
+    updated_at: now(),
+  } as StoredEntity);
+}
+
+export async function deleteContact(id: string): Promise<void> {
+  const ts = now();
+  await enqueueWrite('contacts', 'delete', {
+    id,
+    deleted_at: ts,
+    updated_at: ts,
+  } as StoredEntity);
+}
+
 export async function createNote(input: NoteCreateInput): Promise<void> {
   const ts = now();
   await enqueueWrite('notes', 'create', {
