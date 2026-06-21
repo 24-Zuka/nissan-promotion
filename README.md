@@ -30,17 +30,21 @@ npm run typecheck      # 全パッケージの型チェック
 npm run build          # shared → api → web をビルド
 ```
 
-## デプロイ（Web 公開）
+## デプロイ（Web 公開・無料）
 
-Render に **API + Web を1サービス（同一オリジン）** で公開します。バックエンドが SQLite の
-ファイル DB を使うため、永続ディスクを持つ Render を採用（静的ホスト単独では不可）。
+Render の **無料プラン（カード不要）** に **API + Web を1サービス（同一オリジン）** で公開します。
 
 ```bash
 npm run build          # shared → api → web。API が apps/web/dist を同一オリジンで配信
 ```
 
 リポジトリ同梱の `Dockerfile` / `render.yaml` により、Render の **New ▸ Blueprint** から
-数クリックで公開できます。手順とローカル本番確認は `docs/DEPLOY.md` を参照。
+数クリックで公開できます。手順は `docs/DEPLOY.md` を参照。
+
+> 無料プランの注意: 15 分無操作でスリープ（次アクセスで ~30 秒の起動待ち）、永続ディスク無し
+> （サーバ側 SQLite は再デプロイでリセットされ得る）。本アプリはオフラインファーストで
+> データはブラウザ内（IndexedDB）にも保存されるため、単一端末での利用は継続できます。
+> 恒久保存が必要なら `render.yaml` を `starter` + Disk に切替（同ファイルのコメント参照）。
 
 ## 主要設計
 

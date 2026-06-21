@@ -1,11 +1,19 @@
 # Render Blueprint — My Dealer CRM をフルスタック（API+Web 同一オリジン）で公開。
 # Render ダッシュボード ▸ New ▸ Blueprint ▸ このリポジトリを選択 ▸ Apply で構築される。
+#
+# 【無料プラン構成】plan: free（カード登録不要）。
+#   - 永続ディスク（Disk）は無料プラン非対応のため付けない。サーバ側 SQLite は
+#     コンテナの一時FS上に作られ、再デプロイ/スリープ復帰で消える可能性がある。
+#   - ただし本アプリはオフラインファースト（ブラウザの IndexedDB がデータ源）のため、
+#     単一端末での閲覧・入力は継続できる。データを恒久保存したくなったら plan を
+#     starter に変え、末尾の disk ブロックを有効化し DB_FILE を /data/crm.sqlite に戻す。
+#   - 無料プランは 15 分無操作でスリープ → 次アクセスで ~30 秒の起動待ちが入る。
 services:
   - type: web
     name: my-dealer-crm
     runtime: docker
     dockerfilePath: ./Dockerfile
-    plan: starter # 永続ディスク（Disk）を使うには有料インスタンスが必要
+    plan: free # 無料インスタンス（カード不要・スリープ有り・永続ディスク不可）
     region: singapore # 日本から近い。必要に応じて変更可
     healthCheckPath: /api/v1/health
     autoDeploy: true # main への push で自動デプロイ
@@ -13,10 +21,11 @@ services:
       - key: NODE_ENV
         value: production
       - key: DB_FILE
-        value: /data/crm.sqlite
+        value: /app/data/crm.sqlite # 一時FS上（openDb が親dirを自動作成）
       - key: JWT_SECRET
         generateValue: true # Render が強いランダム値を自動生成
-    disk:
-      name: crm-data
-      mountPath: /data # DB_FILE と一致させること
-      sizeGB: 1
+    # 永続化したい場合は plan を starter にして以下を有効化し、DB_FILE を /data/crm.sqlite に戻す:
+    # disk:
+    #   name: crm-data
+    #   mountPath: /data
+    #   sizeGB: 1
