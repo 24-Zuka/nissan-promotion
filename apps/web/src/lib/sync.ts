@@ -24,6 +24,7 @@ import {
   type OutboxRow,
   type StoredEntity,
 } from './db.js';
+import { STATIC_MODE } from './config.js';
 
 export const SYNC_EVENT = 'crm-sync';
 
@@ -44,14 +45,17 @@ export async function enqueueWrite(
       const prev = (await db.entityTable(table).get(entity.id)) ?? {};
       await db.entityTable(table).put({ ...prev, ...entity });
     }
-    await db.outbox.add({
-      table,
-      op,
-      entity,
-      created_at: new Date().toISOString(),
-    } as OutboxRow);
+    // 静的モードはサーバー同期しないので outbox に積まない（無限に溜まるのを防ぐ）。
+    if (!STATIC_MODE) {
+      await db.outbox.add({
+        table,
+        op,
+        entity,
+        created_at: new Date().toISOString(),
+      } as OutboxRow);
+    }
   });
-  if (isOnline()) void sync();
+  if (!STATIC_MODE && isOnline()) void sync();
 }
 
 /** changes をローカルへ適用する（テーブル横断）。 */
@@ -82,6 +86,7 @@ let inFlight: Promise<void> | null = null;
 
 /** push→pull。多重起動は直列化する。 */
 export function sync(): Promise<void> {
+  if (STATIC_MODE) return Promise.resolve();
   if (inFlight) return inFlight;
   inFlight = (async () => {
     try {
@@ -136,6 +141,7 @@ let started = false;
 
 /** オンライン復帰・フォアグラウンド復帰・一定間隔で同期を回す。 */
 export function startSyncLoop(intervalMs = 30_000): () => void {
+  if (STATIC_MODE) return () => undefined;
   if (started) return () => undefined;
   started = true;
 

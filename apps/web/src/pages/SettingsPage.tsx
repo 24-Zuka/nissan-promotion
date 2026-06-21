@@ -9,6 +9,7 @@ import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { Setting } from '@crm/shared';
 import * as store from '../lib/store.js';
+import * as gcal from '../lib/gcal.js';
 import { useAuth } from '../lib/auth.js';
 import {
   getPermission,
@@ -119,12 +120,16 @@ export default function SettingsPage() {
               />
             </Row>
 
-            <Row title="カレンダー連携" desc="次フェーズで対応予定">
-              <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
-                次フェーズ
-              </span>
+            <Row title="カレンダー連携" desc="Google カレンダーにタスクの予定を書き出します">
+              <Toggle
+                checked={data.calendar_enabled}
+                disabled={update.isPending}
+                onChange={(v) => update.mutate({ calendar_enabled: v })}
+              />
             </Row>
           </div>
+
+          {data.calendar_enabled && <CalendarPanel />}
 
           <NotificationPermissionRow enabled={data.notifications_enabled} />
 
@@ -226,6 +231,110 @@ function NotifyOffsetsRow({
           追加
         </button>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Google カレンダー連携パネル（ブラウザ完結）。
+ * Client ID を貼り付け → Google と接続 → 今すぐ同期。詳細手順は docs/CALENDAR.md。
+ */
+function CalendarPanel() {
+  const [clientId, setClientId] = useState(gcal.getClientId());
+  const [connected, setConnected] = useState(gcal.isConnected());
+  const [lastSync, setLastSync] = useState(gcal.getLastSync());
+  const [status, setStatus] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const saved = gcal.getClientId().length > 0 && gcal.getClientId() === clientId.trim();
+
+  const save = () => {
+    gcal.setClientId(clientId);
+    setStatus('Client ID を保存しました。');
+  };
+
+  const connect = async () => {
+    setBusy(true);
+    setStatus('');
+    try {
+      await gcal.connect(true);
+      setConnected(true);
+      setStatus('Google と接続しました。');
+    } catch {
+      setStatus('接続に失敗しました。Client ID と「承認済み JavaScript 生成元」をご確認ください。');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const sync = async () => {
+    setBusy(true);
+    setStatus('');
+    try {
+      const r = await gcal.syncAllTasks();
+      setConnected(true);
+      setLastSync(gcal.getLastSync());
+      setStatus(`同期しました（追加 ${r.created} / 更新 ${r.updated} / 削除 ${r.deleted}）。`);
+    } catch {
+      setStatus('同期に失敗しました。接続状態をご確認ください。');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="mt-3 rounded-xl bg-white p-4 shadow-sm">
+      <div className="text-sm font-bold text-gray-700">Google カレンダー設定</div>
+      <p className="mt-1 text-xs text-gray-500">
+        Google Cloud で作成した OAuth クライアント ID を貼り付けてください（作成手順は
+        docs/CALENDAR.md）。期限のあるタスクが終日予定として書き出されます。
+      </p>
+
+      <label className="mt-3 block">
+        <span className="mb-1 block text-xs font-medium text-gray-600">OAuth クライアント ID</span>
+        <input
+          value={clientId}
+          onChange={(e) => setClientId(e.target.value)}
+          placeholder="xxxxxxxx.apps.googleusercontent.com"
+          autoCapitalize="none"
+          autoCorrect="off"
+          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-nissan focus:ring-1 focus:ring-nissan"
+        />
+      </label>
+
+      <div className="mt-2 flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={save}
+          disabled={!clientId.trim() || saved}
+          className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 active:bg-gray-50 disabled:opacity-40"
+        >
+          {saved ? '保存済み' : 'Client ID を保存'}
+        </button>
+        <button
+          type="button"
+          onClick={connect}
+          disabled={!saved || busy}
+          className="rounded-lg border border-nissan bg-white px-3 py-1.5 text-sm font-bold text-nissan active:bg-red-50 disabled:opacity-40"
+        >
+          {connected ? '接続済み ✓' : 'Google と接続'}
+        </button>
+        <button
+          type="button"
+          onClick={sync}
+          disabled={!saved || busy}
+          className="rounded-lg bg-nissan px-3 py-1.5 text-sm font-bold text-white active:opacity-80 disabled:opacity-40"
+        >
+          {busy ? '同期中…' : '今すぐ同期'}
+        </button>
+      </div>
+
+      {status && <div className="mt-2 text-xs text-gray-600">{status}</div>}
+      {lastSync && (
+        <div className="mt-1 text-xs text-gray-400">
+          最終同期: {new Date(lastSync).toLocaleString('ja-JP')}
+        </div>
+      )}
     </div>
   );
 }

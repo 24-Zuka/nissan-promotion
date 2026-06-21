@@ -12,6 +12,7 @@ import type {
   Note,
   NoteCreateInput,
   Setting,
+  Task,
   TaskCreateInput,
   Template,
   TemplateCreateInput,
@@ -25,9 +26,15 @@ import {
 import { db, getSyncToken, type StoredEntity } from './db.js';
 import { enqueueWrite, isOnline } from './sync.js';
 import { api, type TaskWithContact } from './api.js';
+import { STATIC_MODE } from './config.js';
 
 async function hasSynced(): Promise<boolean> {
   return (await getSyncToken()) > 0;
+}
+
+/** サーバー(API)を読みに行ってよいか。静的モードでは常に false（Dexie のみが本体）。 */
+function canRemote(): boolean {
+  return !STATIC_MODE && isOnline();
 }
 
 function now(): string {
@@ -37,7 +44,7 @@ function now(): string {
 // ── Reads ──────────────────────────────────────────────
 
 export async function listContacts(): Promise<Contact[]> {
-  if (!(await hasSynced()) && isOnline()) {
+  if (!(await hasSynced()) && canRemote()) {
     try {
       const remote = await api.listContacts();
       if (remote.length) await db.contacts.bulkPut(remote as unknown as StoredEntity[]);
@@ -51,14 +58,14 @@ export async function listContacts(): Promise<Contact[]> {
 export async function getContact(id: string): Promise<Contact> {
   const local = await db.contacts.get(id);
   if (local && !local.deleted_at) return local as unknown as Contact;
-  if (!isOnline()) throw new Error('not_found');
+  if (!canRemote()) throw new Error('not_found');
   const remote = await api.getContact(id);
   await db.contacts.put(remote as unknown as StoredEntity);
   return remote;
 }
 
 export async function listVehicles(contactId: string): Promise<Vehicle[]> {
-  if (!(await hasSynced()) && isOnline()) {
+  if (!(await hasSynced()) && canRemote()) {
     try {
       const remote = await api.listVehicles(contactId);
       if (remote.length) await db.vehicles.bulkPut(remote as unknown as StoredEntity[]);
@@ -74,7 +81,7 @@ export async function listVehicles(contactId: string): Promise<Vehicle[]> {
 }
 
 export async function listNotes(contactId: string): Promise<Note[]> {
-  if (!(await hasSynced()) && isOnline()) {
+  if (!(await hasSynced()) && canRemote()) {
     try {
       const remote = await api.listNotes(contactId);
       if (remote.length) await db.notes.bulkPut(remote as unknown as StoredEntity[]);
@@ -98,7 +105,7 @@ export async function listTasks(
     rank?: string;
   } = {},
 ): Promise<TaskWithContact[]> {
-  if (!(await hasSynced()) && isOnline()) {
+  if (!(await hasSynced()) && canRemote()) {
     try {
       const remote = await api.listTasks(params);
       if (remote.length) {
@@ -125,7 +132,7 @@ export async function listTasks(
 }
 
 export async function listTemplates(category?: string): Promise<Template[]> {
-  if (!(await hasSynced()) && isOnline()) {
+  if (!(await hasSynced()) && canRemote()) {
     try {
       const remote = await api.listTemplates(category);
       if (remote.length)
@@ -154,7 +161,7 @@ const SETTINGS_DEFAULTS: Setting = {
 export async function getSettings(): Promise<Setting> {
   const rows = await db.settings.filter((r) => !r.deleted_at).toArray();
   if (rows.length > 0) return rows[0] as unknown as Setting;
-  if (!isOnline()) return SETTINGS_DEFAULTS;
+  if (!canRemote()) return SETTINGS_DEFAULTS;
   try {
     const remote = await api.getSettings();
     await db.settings.put(remote as unknown as StoredEntity);
@@ -206,6 +213,69 @@ export async function updateContact(
 export async function deleteContact(id: string): Promise<void> {
   const ts = now();
   await enqueueWrite('contacts', 'delete', {
+    id,
+    deleted_at: ts,
+    updated_at: ts,
+  } as StoredEntity);
+}
+
+// 車両・メモ・タスクの編集／削除（顧客と同じ enqueueWrite パターン。sync COLUMNS が
+// 編集対象カラムを網羅済みなので、オンライン時はそのままサーバーへ伝播する）。
+
+export async function updateVehicle(
+  id: string,
+  input: Partial<VehicleCreateInput>,
+): Promise<void> {
+  await enqueueWrite('vehicles', 'update', {
+    id,
+    ...input,
+    updated_at: now(),
+  } as StoredEntity);
+}
+
+export async function deleteVehicle(id: string): Promise<void> {
+  const ts = now();
+  await enqueueWrite('vehicles', 'delete', {
+    id,
+    deleted_at: ts,
+    updated_at: ts,
+  } as StoredEntity);
+}
+
+type NoteEditInput = Partial<Pick<NoteCreateInput, 'date' | 'summary' | 'reaction' | 'next_action'>>;
+
+export async function updateNote(id: string, input: NoteEditInput): Promise<void> {
+  await enqueueWrite('notes', 'update', {
+    id,
+    ...input,
+    updated_at: now(),
+  } as StoredEntity);
+}
+
+export async function deleteNote(id: string): Promise<void> {
+  const ts = now();
+  await enqueueWrite('notes', 'delete', {
+    id,
+    deleted_at: ts,
+    updated_at: ts,
+  } as StoredEntity);
+}
+
+export type TaskEditInput = Partial<
+  Pick<Task, 'type' | 'title' | 'detail' | 'due_date' | 'status' | 'notify' | 'vehicle_id'>
+>;
+
+export async function updateTask(id: string, input: TaskEditInput): Promise<void> {
+  await enqueueWrite('tasks', 'update', {
+    id,
+    ...input,
+    updated_at: now(),
+  } as StoredEntity);
+}
+
+export async function deleteTask(id: string): Promise<void> {
+  const ts = now();
+  await enqueueWrite('tasks', 'delete', {
     id,
     deleted_at: ts,
     updated_at: ts,
@@ -374,13 +444,20 @@ export async function updateSettings(
 ): Promise<Setting> {
   const ts = now();
   const current = await getSettings();
-  const updated = { ...current, ...input, updated_at: ts };
   if (current.id) {
     await enqueueWrite('settings', 'update', {
       id: current.id,
       ...input,
       updated_at: ts,
     } as StoredEntity);
+    return { ...current, ...input, updated_at: ts };
   }
-  return updated;
+  // 静的モードはサーバー seed が無いため、初回更新時にローカルへ設定行を作る。
+  if (STATIC_MODE) {
+    const id = crypto.randomUUID();
+    const created: Setting = { ...current, ...input, id, created_at: ts, updated_at: ts };
+    await enqueueWrite('settings', 'create', created as unknown as StoredEntity);
+    return created;
+  }
+  return { ...current, ...input, updated_at: ts };
 }

@@ -25,6 +25,7 @@ import {
   type NoteCreateInput,
   type Rank,
   type TaskCreateInput,
+  type TaskStatus,
   type TaskType,
   type Template,
   type Vehicle,
@@ -52,8 +53,19 @@ export default function ContactDetailPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [modal, setModal] = useState<
-    null | 'note' | 'task' | 'vehicle' | 'message' | 'edit' | 'delete'
+    null | 'note' | 'task' | 'vehicle' | 'message' | 'edit'
   >(null);
+  // 個別アイテムの編集モーダル（対象を保持）。
+  const [editVehicle, setEditVehicle] = useState<Vehicle | null>(null);
+  const [editNote, setEditNote] = useState<Note | null>(null);
+  const [editTask, setEditTask] = useState<TaskWithContact | null>(null);
+  // 削除確認（タイトル/文言/実行/後処理を保持し、1つの DeleteModal で使い回す）。
+  const [del, setDel] = useState<{
+    title: string;
+    message: string;
+    run: () => Promise<void>;
+    after: () => void;
+  } | null>(null);
 
   const contactQ = useQuery({ queryKey: ['contact', id], queryFn: () => store.getContact(id) });
   const vehiclesQ = useQuery({ queryKey: ['vehicles', id], queryFn: () => store.listVehicles(id) });
@@ -64,11 +76,21 @@ export default function ContactDetailPage() {
   });
 
   const close = () => setModal(null);
-  const invalidate = (keys: unknown[][]) => {
+  const invalidateKeys = (keys: unknown[][]) => {
     for (const k of keys) queryClient.invalidateQueries({ queryKey: k });
+  };
+  const invalidate = (keys: unknown[][]) => {
+    invalidateKeys(keys);
     close();
   };
+  const closeEdits = () => {
+    setEditVehicle(null);
+    setEditNote(null);
+    setEditTask(null);
+  };
 
+  // キー定義（編集/削除後の invalidate に使い回す）。
+  const TASK_KEYS: unknown[][] = [['tasks', { contact_id: id, status: 'open' }], ['tasks']];
   const c = contactQ.data;
 
   return (
@@ -129,9 +151,22 @@ export default function ContactDetailPage() {
             {tasksQ.data && tasksQ.data.length > 0 ? (
               <ul className="divide-y divide-gray-100">
                 {tasksQ.data.map((t) => (
-                  <li key={t.id} className="flex items-center justify-between py-2 text-sm">
-                    <span className="text-gray-900">{t.title}</span>
-                    <span className="text-xs text-gray-500">{t.due_date}</span>
+                  <li key={t.id} className="flex items-center justify-between gap-2 py-2 text-sm">
+                    <div className="min-w-0">
+                      <span className="text-gray-900">{t.title}</span>
+                      <span className="ml-2 text-xs text-gray-500">{t.due_date}</span>
+                    </div>
+                    <RowActions
+                      onEdit={() => setEditTask(t)}
+                      onDelete={() =>
+                        setDel({
+                          title: 'タスクを削除',
+                          message: `「${t.title}」を削除します。`,
+                          run: () => store.deleteTask(t.id),
+                          after: () => invalidateKeys(TASK_KEYS),
+                        })
+                      }
+                    />
                   </li>
                 ))}
               </ul>
@@ -145,17 +180,30 @@ export default function ContactDetailPage() {
             {vehiclesQ.data && vehiclesQ.data.length > 0 ? (
               <ul className="divide-y divide-gray-100">
                 {vehiclesQ.data.map((v: Vehicle) => (
-                  <li key={v.id} className="py-2 text-sm">
-                    <div className="font-medium text-gray-900">
-                      {v.name ?? '（車名未設定）'}
-                      <span className="ml-2 text-xs text-gray-500">
-                        {v.condition === 'used' ? '中古' : '新車'}
-                      </span>
+                  <li key={v.id} className="flex items-start justify-between gap-2 py-2 text-sm">
+                    <div className="min-w-0">
+                      <div className="font-medium text-gray-900">
+                        {v.name ?? '（車名未設定）'}
+                        <span className="ml-2 text-xs text-gray-500">
+                          {v.condition === 'used' ? '中古' : '新車'}
+                        </span>
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        {v.model_code && `型式 ${v.model_code}`}
+                        {v.shaken_expiry_date && ` / 車検満了 ${v.shaken_expiry_date}`}
+                      </div>
                     </div>
-                    <div className="text-xs text-gray-500">
-                      {v.model_code && `型式 ${v.model_code}`}
-                      {v.shaken_expiry_date && ` / 車検満了 ${v.shaken_expiry_date}`}
-                    </div>
+                    <RowActions
+                      onEdit={() => setEditVehicle(v)}
+                      onDelete={() =>
+                        setDel({
+                          title: '車両を削除',
+                          message: `「${v.name ?? '（車名未設定）'}」を削除します。`,
+                          run: () => store.deleteVehicle(v.id),
+                          after: () => invalidateKeys([['vehicles', id], ...TASK_KEYS]),
+                        })
+                      }
+                    />
                   </li>
                 ))}
               </ul>
@@ -169,13 +217,26 @@ export default function ContactDetailPage() {
             {notesQ.data && notesQ.data.length > 0 ? (
               <ul className="space-y-3">
                 {notesQ.data.slice(0, 5).map((n) => (
-                  <li key={n.id} className="text-sm">
-                    <div className="text-xs text-gray-400">{n.date}</div>
-                    <div className="text-gray-900">{n.summary}</div>
-                    {n.reaction && <div className="text-xs text-gray-500">反応: {n.reaction}</div>}
-                    {n.next_action && (
-                      <div className="text-xs text-gray-500">次アクション: {n.next_action}</div>
-                    )}
+                  <li key={n.id} className="flex items-start justify-between gap-2 text-sm">
+                    <div className="min-w-0">
+                      <div className="text-xs text-gray-400">{n.date}</div>
+                      <div className="text-gray-900">{n.summary}</div>
+                      {n.reaction && <div className="text-xs text-gray-500">反応: {n.reaction}</div>}
+                      {n.next_action && (
+                        <div className="text-xs text-gray-500">次アクション: {n.next_action}</div>
+                      )}
+                    </div>
+                    <RowActions
+                      onEdit={() => setEditNote(n)}
+                      onDelete={() =>
+                        setDel({
+                          title: 'メモを削除',
+                          message: 'このメモを削除します。',
+                          run: () => store.deleteNote(n.id),
+                          after: () => invalidateKeys([['notes', id]]),
+                        })
+                      }
+                    />
                   </li>
                 ))}
               </ul>
@@ -187,7 +248,17 @@ export default function ContactDetailPage() {
           {/* 削除 */}
           <button
             type="button"
-            onClick={() => setModal('delete')}
+            onClick={() =>
+              setDel({
+                title: '顧客を削除',
+                message: `「${c.name}」を削除します。一覧から消え、関連情報も表示されなくなります。`,
+                run: () => store.deleteContact(id),
+                after: () => {
+                  queryClient.invalidateQueries({ queryKey: ['contacts'] });
+                  navigate('/contacts');
+                },
+              })
+            }
             className="w-full rounded-xl border border-red-200 bg-white py-2.5 text-sm font-bold text-red-600 active:bg-red-50"
           >
             この顧客を削除
@@ -233,15 +304,47 @@ export default function ContactDetailPage() {
           onDone={() => invalidate([['contact', id], ['contacts'], ['tasks']])}
         />
       )}
-      {modal === 'delete' && c && (
-        <DeleteModal
-          contactName={c.name}
-          onClose={close}
-          onDeleted={() => {
-            queryClient.invalidateQueries({ queryKey: ['contacts'] });
-            navigate('/contacts');
+      {editVehicle && (
+        <EditVehicleModal
+          vehicle={editVehicle}
+          onClose={closeEdits}
+          onDone={() => {
+            invalidateKeys([['vehicles', id]]);
+            closeEdits();
           }}
-          deleteFn={() => store.deleteContact(id)}
+        />
+      )}
+      {editNote && (
+        <EditNoteModal
+          note={editNote}
+          onClose={closeEdits}
+          onDone={() => {
+            invalidateKeys([['notes', id]]);
+            closeEdits();
+          }}
+        />
+      )}
+      {editTask && (
+        <EditTaskModal
+          task={editTask}
+          vehicles={vehiclesQ.data ?? []}
+          onClose={closeEdits}
+          onDone={() => {
+            invalidateKeys(TASK_KEYS);
+            closeEdits();
+          }}
+        />
+      )}
+      {del && (
+        <DeleteModal
+          title={del.title}
+          message={del.message}
+          deleteFn={del.run}
+          onClose={() => setDel(null)}
+          onDeleted={() => {
+            del.after();
+            setDel(null);
+          }}
         />
       )}
     </div>
@@ -333,15 +436,17 @@ function EditModal({
   );
 }
 
-/* ---------- 顧客削除（確認） ---------- */
+/* ---------- 汎用削除（確認）。顧客/車両/メモ/タスクで共用 ---------- */
 
 function DeleteModal({
-  contactName,
+  title,
+  message,
   onClose,
   onDeleted,
   deleteFn,
 }: {
-  contactName: string;
+  title: string;
+  message: string;
   onClose: () => void;
   onDeleted: () => void;
   deleteFn: () => Promise<void>;
@@ -349,10 +454,8 @@ function DeleteModal({
   const del = useMutation({ mutationFn: deleteFn, onSuccess: onDeleted });
 
   return (
-    <Modal open title="顧客を削除" onClose={onClose}>
-      <p className="mb-4 text-sm text-gray-700">
-        「{contactName}」を削除します。一覧から消え、関連情報も表示されなくなります。
-      </p>
+    <Modal open title={title} onClose={onClose}>
+      <p className="mb-4 text-sm text-gray-700">{message}</p>
       {del.isError && <div className="mb-2 text-sm text-nissan">削除に失敗しました。</div>}
       <div className="flex gap-2">
         <button
@@ -409,6 +512,20 @@ function ActionBtn({ label, onClick }: { label: string; onClick: () => void }) {
     >
       {label}
     </button>
+  );
+}
+
+/** リスト行の「編集 / 削除」操作。 */
+function RowActions({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => void }) {
+  return (
+    <div className="flex shrink-0 items-center gap-2">
+      <button type="button" onClick={onEdit} className="text-xs font-bold text-nissan">
+        編集
+      </button>
+      <button type="button" onClick={onDelete} className="text-xs font-bold text-red-600">
+        削除
+      </button>
+    </div>
   );
 }
 
@@ -787,6 +904,275 @@ function VehicleModal({
         className="mt-1 w-full rounded-xl bg-nissan py-3 font-bold text-white active:opacity-80 disabled:opacity-40"
       >
         {create.isPending ? '登録中…' : '登録'}
+      </button>
+    </Modal>
+  );
+}
+
+/* ---------- 車両編集 ---------- */
+
+function EditVehicleModal({
+  vehicle,
+  onClose,
+  onDone,
+}: {
+  vehicle: Vehicle;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const [name, setName] = useState(vehicle.name ?? '');
+  const [modelCode, setModelCode] = useState(vehicle.model_code ?? '');
+  const [condition, setCondition] = useState<VehicleCondition>(vehicle.condition);
+  const [registration, setRegistration] = useState(vehicle.registration_date ?? '');
+  const [delivery, setDelivery] = useState(vehicle.delivery_date ?? '');
+  const [shaken, setShaken] = useState(vehicle.shaken_expiry_date ?? '');
+  const [profile, setProfile] = useState<InspectionProfile>(vehicle.inspection_profile);
+
+  const update = useMutation({
+    mutationFn: (input: Partial<VehicleCreateInput>) => store.updateVehicle(vehicle.id, input),
+    onSuccess: onDone,
+  });
+
+  const usedNeedsShaken = condition === 'used' && !shaken;
+  const blocked = !name.trim() || usedNeedsShaken;
+
+  const submit = () => {
+    if (blocked) return;
+    update.mutate({
+      name: name.trim(),
+      model_code: modelCode.trim() || null,
+      condition,
+      registration_date: registration || null,
+      delivery_date: delivery || null,
+      shaken_expiry_date: shaken || null,
+      inspection_profile: profile,
+    });
+  };
+
+  return (
+    <Modal open title="車両を編集" onClose={onClose}>
+      <Field label="車名" required>
+        <TextInput value={name} onChange={(e) => setName(e.target.value)} />
+      </Field>
+      <Field label="型式">
+        <TextInput value={modelCode} onChange={(e) => setModelCode(e.target.value)} />
+      </Field>
+      <Field label="状態" required>
+        <Select value={condition} onChange={(e) => setCondition(e.target.value as VehicleCondition)}>
+          {VEHICLE_CONDITIONS.map((co) => (
+            <option key={co} value={co}>
+              {co === 'used' ? '中古' : '新車'}
+            </option>
+          ))}
+        </Select>
+      </Field>
+      <Field label="登録日">
+        <TextInput type="date" value={registration} onChange={(e) => setRegistration(e.target.value)} />
+      </Field>
+      <Field label="納車日">
+        <TextInput type="date" value={delivery} onChange={(e) => setDelivery(e.target.value)} />
+      </Field>
+      <Field label="車検満了日" required={condition === 'used'}>
+        <TextInput type="date" value={shaken} onChange={(e) => setShaken(e.target.value)} />
+      </Field>
+      {usedNeedsShaken && (
+        <div className="mb-2 text-xs text-nissan">中古車は車検満了日が必須です。</div>
+      )}
+      <Field label="車検周期">
+        <Select value={profile} onChange={(e) => setProfile(e.target.value as InspectionProfile)}>
+          {INSPECTION_PROFILES.map((p) => (
+            <option key={p} value={p}>
+              {INSPECTION_PROFILE_LABEL[p]}
+            </option>
+          ))}
+        </Select>
+      </Field>
+
+      <p className="mb-2 text-xs text-gray-400">
+        ※ 既存の点検・車検タスクは自動で再生成されません（必要に応じてタスクを編集してください）。
+      </p>
+      {update.isError && <div className="mb-2 text-sm text-nissan">保存に失敗しました。</div>}
+
+      <button
+        type="button"
+        onClick={submit}
+        disabled={blocked || update.isPending}
+        className="mt-1 w-full rounded-xl bg-nissan py-3 font-bold text-white active:opacity-80 disabled:opacity-40"
+      >
+        {update.isPending ? '保存中…' : '保存'}
+      </button>
+    </Modal>
+  );
+}
+
+/* ---------- メモ編集 ---------- */
+
+function EditNoteModal({
+  note,
+  onClose,
+  onDone,
+}: {
+  note: Note;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const [date, setDate] = useState(note.date);
+  const [summary, setSummary] = useState(note.summary);
+  const [reaction, setReaction] = useState(note.reaction ?? '');
+  const [nextAction, setNextAction] = useState(note.next_action ?? '');
+
+  const update = useMutation({
+    mutationFn: () =>
+      store.updateNote(note.id, {
+        date,
+        summary: summary.trim(),
+        reaction: reaction.trim() || null,
+        next_action: nextAction.trim() || null,
+      }),
+    onSuccess: onDone,
+  });
+
+  const submit = () => {
+    if (!summary.trim()) return;
+    update.mutate();
+  };
+
+  return (
+    <Modal open title="メモを編集" onClose={onClose}>
+      <Field label="日付" required>
+        <TextInput type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+      </Field>
+      <Field label="要点" required>
+        <TextArea rows={2} value={summary} onChange={(e) => setSummary(e.target.value)} />
+      </Field>
+      <Field label="相手の反応">
+        <TextInput value={reaction} onChange={(e) => setReaction(e.target.value)} />
+      </Field>
+      <Field label="次の一手">
+        <TextInput value={nextAction} onChange={(e) => setNextAction(e.target.value)} />
+      </Field>
+
+      {update.isError && <div className="mb-2 text-sm text-nissan">保存に失敗しました。</div>}
+
+      <button
+        type="button"
+        onClick={submit}
+        disabled={!summary.trim() || update.isPending}
+        className="mt-1 w-full rounded-xl bg-nissan py-3 font-bold text-white active:opacity-80 disabled:opacity-40"
+      >
+        {update.isPending ? '保存中…' : '保存'}
+      </button>
+    </Modal>
+  );
+}
+
+/* ---------- タスク編集 ---------- */
+
+const TASK_STATUS_OPTIONS: { value: TaskStatus; label: string }[] = [
+  { value: 'open', label: '未完' },
+  { value: 'hold', label: '保留' },
+  { value: 'done', label: '完了' },
+];
+
+function EditTaskModal({
+  task,
+  vehicles,
+  onClose,
+  onDone,
+}: {
+  task: TaskWithContact;
+  vehicles: Vehicle[];
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const [type, setType] = useState<TaskType>(task.type);
+  const [title, setTitle] = useState(task.title);
+  const [detail, setDetail] = useState(task.detail ?? '');
+  const [due, setDue] = useState(task.due_date);
+  const [vehicleId, setVehicleId] = useState(task.vehicle_id ?? '');
+  const [status, setStatus] = useState<TaskStatus>(task.status);
+  const [notify, setNotify] = useState(task.notify);
+
+  const update = useMutation({
+    mutationFn: (input: store.TaskEditInput) => store.updateTask(task.id, input),
+    onSuccess: onDone,
+  });
+
+  const needsVehicle = isMaintenanceTaskType(type);
+  const blocked = !title.trim() || (needsVehicle && !vehicleId);
+
+  const submit = () => {
+    if (blocked) return;
+    update.mutate({
+      type,
+      title: title.trim(),
+      detail: detail.trim() || null,
+      due_date: due,
+      status,
+      notify,
+      vehicle_id: vehicleId || null,
+    });
+  };
+
+  return (
+    <Modal open title="タスクを編集" onClose={onClose}>
+      <Field label="種別" required>
+        <Select value={type} onChange={(e) => setType(e.target.value as TaskType)}>
+          {Object.values(TASK_TYPE).map((t) => (
+            <option key={t} value={t}>
+              {TASK_TYPE_LABEL[t]}
+            </option>
+          ))}
+        </Select>
+      </Field>
+      <Field label="タイトル" required>
+        <TextInput value={title} onChange={(e) => setTitle(e.target.value)} />
+      </Field>
+      <Field label="詳細">
+        <TextInput value={detail} onChange={(e) => setDetail(e.target.value)} />
+      </Field>
+      <Field label="期限" required>
+        <TextInput type="date" value={due} onChange={(e) => setDue(e.target.value)} />
+      </Field>
+      <Field label="状態" required>
+        <Select value={status} onChange={(e) => setStatus(e.target.value as TaskStatus)}>
+          {TASK_STATUS_OPTIONS.map((s) => (
+            <option key={s.value} value={s.value}>
+              {s.label}
+            </option>
+          ))}
+        </Select>
+      </Field>
+      <Field label="車両" required={needsVehicle}>
+        <Select value={vehicleId} onChange={(e) => setVehicleId(e.target.value)}>
+          <option value="">{needsVehicle ? '車両を選択' : '（任意）'}</option>
+          {vehicles.map((v) => (
+            <option key={v.id} value={v.id}>
+              {v.name ?? '（車名未設定）'}
+            </option>
+          ))}
+        </Select>
+      </Field>
+
+      <label className="mb-3 flex items-center gap-2 text-sm font-medium text-gray-700">
+        <input type="checkbox" checked={notify} onChange={(e) => setNotify(e.target.checked)} />
+        期限が近づいたら通知する
+      </label>
+
+      {needsVehicle && vehicles.length === 0 && (
+        <div className="mb-2 text-xs text-nissan">
+          メンテ系タスクには車両が必要です。先に車両を追加してください。
+        </div>
+      )}
+      {update.isError && <div className="mb-2 text-sm text-nissan">保存に失敗しました。</div>}
+
+      <button
+        type="button"
+        onClick={submit}
+        disabled={blocked || update.isPending}
+        className="mt-1 w-full rounded-xl bg-nissan py-3 font-bold text-white active:opacity-80 disabled:opacity-40"
+      >
+        {update.isPending ? '保存中…' : '保存'}
       </button>
     </Modal>
   );
