@@ -18,6 +18,9 @@ import * as store from '../lib/store.js';
 import AppHeader from '../components/AppHeader.js';
 import Modal from '../components/Modal.js';
 import { Field, Select, TextArea, TextInput } from '../components/Field.js';
+import ErrorState from '../components/ErrorState.js';
+import { Button } from '../components/ui.js';
+import { getFieldErrors } from '../lib/formErrors.js';
 
 const CATEGORY_LABEL: Record<TemplateCategory, string> = {
   maintenance: '点検・車検',
@@ -28,8 +31,9 @@ export default function TemplatesPage() {
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState<Template | null>(null);
   const [creating, setCreating] = useState(false);
+  const [deleting, setDeleting] = useState<Template | null>(null);
 
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['templates'],
     queryFn: () => store.listTemplates(),
   });
@@ -64,7 +68,7 @@ export default function TemplatesPage() {
       />
 
       {isLoading && <div className="p-6 text-center text-text2">読み込み中…</div>}
-      {isError && <div className="p-6 text-center text-overdue">読み込みに失敗しました。</div>}
+      {isError && <div className="mx-auto max-w-content p-4"><ErrorState onRetry={() => void refetch()} /></div>}
 
       {!isLoading && !isError && (
         <div className="mx-auto max-w-content space-y-5 p-4">
@@ -98,9 +102,7 @@ export default function TemplatesPage() {
                             </button>
                             <button
                               type="button"
-                              onClick={() => {
-                                if (confirm(`「${t.name}」を削除しますか？`)) remove.mutate(t.id);
-                              }}
+                              onClick={() => setDeleting(t)}
                               className="font-semibold text-overdue active:opacity-60"
                             >
                               削除
@@ -134,6 +136,16 @@ export default function TemplatesPage() {
         }}
         onSaved={onSaved}
       />
+      <Modal open={deleting != null} title="テンプレートを削除" onClose={() => setDeleting(null)}>
+        <p className="mb-4 text-sm text-text2">「{deleting?.name}」を削除します。</p>
+        {remove.isError && <p className="mb-2 text-sm text-overdue">削除できませんでした。</p>}
+        <div className="flex gap-2">
+          <Button variant="outline" full onClick={() => setDeleting(null)}>キャンセル</Button>
+          <Button variant="destructive" full disabled={remove.isPending} onClick={() => deleting && remove.mutate(deleting.id, { onSuccess: () => setDeleting(null) })}>
+            {remove.isPending ? '削除中…' : '削除する'}
+          </Button>
+        </div>
+      </Modal>
     </div>
   );
 }
@@ -178,6 +190,7 @@ function TemplateForm({
       template ? store.updateTemplate(template.id, input) : store.createTemplate(input),
     onSuccess: onSaved,
   });
+  const errors = getFieldErrors(save.error);
 
   const insertToken = (tag: string) => setBody((b) => b + tag);
 
@@ -188,7 +201,7 @@ function TemplateForm({
 
   return (
     <Modal open title={template ? 'テンプレート編集' : '新規テンプレート'} onClose={onClose}>
-      <Field label="名称" required>
+      <Field label="名称" required error={errors.name}>
         <TextInput value={name} onChange={(e) => setName(e.target.value)} placeholder="車検案内" />
       </Field>
       <Field label="カテゴリ" required>
@@ -200,7 +213,7 @@ function TemplateForm({
           ))}
         </Select>
       </Field>
-      <Field label="本文" required>
+      <Field label="本文" required error={errors.body}>
         <TextArea value={body} onChange={(e) => setBody(e.target.value)} rows={6} />
       </Field>
 

@@ -20,8 +20,19 @@ import type {
   VehicleCreateInput,
 } from '@crm/shared';
 import {
+  contactCreateSchema,
+  contactUpdateSchema,
   generateMaintenanceTasksForNewCar,
   generateMaintenanceTasksForUsedCar,
+  noteCreateSchema,
+  noteUpdateSchema,
+  settingUpdateSchema,
+  taskCreateSchema,
+  taskUpdateSchema,
+  templateCreateSchema,
+  templateUpdateSchema,
+  vehicleCreateSchema,
+  vehicleUpdateSchema,
 } from '@crm/shared';
 import { db, getSyncToken, type StoredEntity } from './db.js';
 import { enqueueWrite, isOnline } from './sync.js';
@@ -176,6 +187,7 @@ export async function getSettings(): Promise<Setting> {
 export async function createContact(
   input: ContactCreateInput,
 ): Promise<Contact> {
+  input = contactCreateSchema.parse(input);
   const ts = now();
   const entity: Record<string, unknown> = {
     id: crypto.randomUUID(),
@@ -203,6 +215,7 @@ export async function updateContact(
   id: string,
   input: Partial<ContactCreateInput>,
 ): Promise<void> {
+  input = contactUpdateSchema.parse(input);
   await enqueueWrite('contacts', 'update', {
     id,
     ...input,
@@ -226,6 +239,11 @@ export async function updateVehicle(
   id: string,
   input: Partial<VehicleCreateInput>,
 ): Promise<void> {
+  input = vehicleUpdateSchema.parse(input);
+  const current = await db.vehicles.get(id);
+  if (current) {
+    vehicleCreateSchema.parse({ ...current, ...input, generate_maintenance: false });
+  }
   await enqueueWrite('vehicles', 'update', {
     id,
     ...input,
@@ -245,6 +263,7 @@ export async function deleteVehicle(id: string): Promise<void> {
 type NoteEditInput = Partial<Pick<NoteCreateInput, 'date' | 'summary' | 'reaction' | 'next_action'>>;
 
 export async function updateNote(id: string, input: NoteEditInput): Promise<void> {
+  input = noteUpdateSchema.parse(input);
   await enqueueWrite('notes', 'update', {
     id,
     ...input,
@@ -266,6 +285,9 @@ export type TaskEditInput = Partial<
 >;
 
 export async function updateTask(id: string, input: TaskEditInput): Promise<void> {
+  input = taskUpdateSchema.parse(input) as TaskEditInput;
+  const current = await db.tasks.get(id);
+  if (current) taskCreateSchema.parse({ ...current, ...input });
   await enqueueWrite('tasks', 'update', {
     id,
     ...input,
@@ -283,6 +305,7 @@ export async function deleteTask(id: string): Promise<void> {
 }
 
 export async function createNote(input: NoteCreateInput): Promise<void> {
+  input = noteCreateSchema.parse(input);
   const ts = now();
   await enqueueWrite('notes', 'create', {
     id: crypto.randomUUID(),
@@ -319,6 +342,7 @@ export async function createNote(input: NoteCreateInput): Promise<void> {
 }
 
 export async function createTask(input: TaskCreateInput): Promise<void> {
+  input = taskCreateSchema.parse(input);
   const ts = now();
   await enqueueWrite('tasks', 'create', {
     id: crypto.randomUUID(),
@@ -348,6 +372,7 @@ export async function completeTask(id: string): Promise<void> {
 }
 
 export async function createVehicle(input: VehicleCreateInput): Promise<void> {
+  input = vehicleCreateSchema.parse(input);
   const ts = now();
   const vehicleId = crypto.randomUUID();
   const profile = (input.inspection_profile ?? 'standard') as InspectionProfile;
@@ -405,6 +430,7 @@ export async function createVehicle(input: VehicleCreateInput): Promise<void> {
 export async function createTemplate(
   input: TemplateCreateInput,
 ): Promise<void> {
+  input = templateCreateSchema.parse(input);
   const ts = now();
   await enqueueWrite('templates', 'create', {
     id: crypto.randomUUID(),
@@ -423,6 +449,7 @@ export async function updateTemplate(
   id: string,
   input: Partial<TemplateCreateInput>,
 ): Promise<void> {
+  input = templateUpdateSchema.parse(input);
   await enqueueWrite('templates', 'update', {
     id,
     ...input,
@@ -442,6 +469,7 @@ export async function deleteTemplate(id: string): Promise<void> {
 export async function updateSettings(
   input: Partial<Setting>,
 ): Promise<Setting> {
+  input = settingUpdateSchema.parse(input);
   const ts = now();
   const current = await getSettings();
   if (current.id) {

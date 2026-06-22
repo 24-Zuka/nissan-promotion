@@ -13,13 +13,15 @@ import { Button, Card, SectionLabel } from '../components/ui.js';
 import RankBadge from '../components/RankBadge.js';
 import Modal from '../components/Modal.js';
 import { Field, Select, TextInput } from '../components/Field.js';
+import ErrorState from '../components/ErrorState.js';
+import { getFieldErrors } from '../lib/formErrors.js';
 
 export default function ContactsPage() {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
 
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['contacts'],
     queryFn: () => store.listContacts(),
   });
@@ -50,15 +52,23 @@ export default function ContactsPage() {
       <div className="mb-4 flex items-center gap-2 rounded-[10px] bg-surface px-3 py-2.5 shadow-card">
         <span className="text-text3">⌕</span>
         <input
+          aria-label="顧客を検索"
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="検索"
           className="w-full bg-transparent text-[15px] text-ink outline-none placeholder:text-text3"
         />
+        {q && (
+          <button type="button" onClick={() => setQ('')} className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-text2 active:bg-tint" aria-label="検索をクリア">×</button>
+        )}
       </div>
 
+      {!isLoading && !isError && data && (
+        <div className="mb-3 px-1 text-xs text-text2">{filtered.length}件 / 全{data.length}件</div>
+      )}
+
       {isLoading && <div className="py-10 text-center text-text2">読み込み中…</div>}
-      {isError && <div className="py-10 text-center text-overdue">読み込みに失敗しました。</div>}
+      {isError && <ErrorState onRetry={() => void refetch()} />}
 
       {!isLoading && !isError && (
         <div className="space-y-5">
@@ -136,6 +146,7 @@ function NewContactModal({
       onCreated();
     },
   });
+  const errors = getFieldErrors(create.error);
 
   const submit = () => {
     if (!name.trim()) return;
@@ -149,7 +160,7 @@ function NewContactModal({
 
   return (
     <Modal open={open} title="新規顧客" onClose={onClose}>
-      <Field label="氏名" required>
+      <Field label="氏名" required error={errors.name}>
         <TextInput value={name} onChange={(e) => setName(e.target.value)} placeholder="山田 太郎" />
       </Field>
       <Field label="ランク" required>
@@ -164,7 +175,7 @@ function NewContactModal({
       <Field label="電話番号">
         <TextInput value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" />
       </Field>
-      <Field label="メール">
+      <Field label="メール" error={errors.email}>
         <TextInput value={email} onChange={(e) => setEmail(e.target.value)} inputMode="email" />
       </Field>
 

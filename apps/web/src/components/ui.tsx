@@ -27,8 +27,9 @@ export function Button({
 } & ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
     <button
+      type="button"
       {...rest}
-      className={`rounded-xl px-4 py-3 text-[16px] font-semibold transition-colors disabled:opacity-40 ${
+      className={`min-h-11 rounded-xl px-4 py-3 text-[16px] font-semibold transition-colors disabled:opacity-40 ${
         full ? 'w-full' : ''
       } ${VARIANT[variant]} ${className}`}
     >

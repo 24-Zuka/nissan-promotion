@@ -5,7 +5,7 @@
 /*
  * デザイントークン（仕様書 v1.0 準拠 / 無彩色ベース・Light/Dark）。
  * 意味は色ではなく濃淡で伝える。アクセントは Ink（無彩色）一色。
- * Light/Dark は OS の prefers-color-scheme に自動追従する。
+ * Light/Dark は設定画面から切り替え、初期値はOS設定に追従する。
  */
 :root {
   color-scheme: light dark;
@@ -30,8 +30,7 @@
   --rank-d-border: #c7c7cc;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
+:root[data-theme='dark'] {
     --bg: #000000;
     --surface: #1c1c1e;
     --surface-2: #2c2c2e;
@@ -50,11 +49,15 @@
     --rank-c: #3a3a3c;
     --rank-c-ink: #f5f5f7;
     --rank-d-border: #48484a;
-  }
 }
 
 * {
   -webkit-tap-highlight-color: transparent;
+}
+
+:where(button, a, input, select, textarea):focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
 }
 
 body {

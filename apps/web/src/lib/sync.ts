@@ -28,6 +28,42 @@ import { STATIC_MODE } from './config.js';
 
 export const SYNC_EVENT = 'crm-sync';
 
+export type SyncState = 'local' | 'idle' | 'pending' | 'syncing' | 'offline' | 'error';
+
+export interface SyncStatusSnapshot {
+  state: SyncState;
+  pending_count: number;
+  last_synced_at: string | null;
+}
+
+let syncStatus: SyncStatusSnapshot = {
+  state: STATIC_MODE ? 'local' : isOnline() ? 'idle' : 'offline',
+  pending_count: 0,
+  last_synced_at: null,
+};
+
+export function getSyncStatus(): SyncStatusSnapshot {
+  return syncStatus;
+}
+
+function publishSyncStatus(next: Partial<SyncStatusSnapshot>): void {
+  syncStatus = { ...syncStatus, ...next };
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(
+      new CustomEvent<SyncStatusSnapshot>(SYNC_EVENT, { detail: syncStatus }),
+    );
+  }
+}
+
+async function publishPendingState(): Promise<void> {
+  if (STATIC_MODE) return;
+  const pending = await db.outbox.count();
+  publishSyncStatus({
+    state: isOnline() ? (pending > 0 ? 'pending' : 'idle') : 'offline',
+    pending_count: pending,
+  });
+}
+
 export function isOnline(): boolean {
   return typeof navigator === 'undefined' ? true : navigator.onLine;
 }
@@ -55,6 +91,7 @@ export async function enqueueWrite(
       } as OutboxRow);
     }
   });
+  await publishPendingState();
   if (!STATIC_MODE && isOnline()) void sync();
 }
 
@@ -90,14 +127,21 @@ export function sync(): Promise<void> {
   if (inFlight) return inFlight;
   inFlight = (async () => {
     try {
-      if (!isOnline()) return;
+      if (!isOnline()) {
+        await publishPendingState();
+        return;
+      }
+      publishSyncStatus({ state: 'syncing' });
       await push();
       await pull();
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new Event(SYNC_EVENT));
-      }
+      publishSyncStatus({
+        state: 'idle',
+        pending_count: await db.outbox.count(),
+        last_synced_at: new Date().toISOString(),
+      });
     } catch {
       // ネットワーク不調などは次トリガで再試行（顧客情報はログに出さない）。
+      publishSyncStatus({ state: 'error', pending_count: await db.outbox.count() });
     } finally {
       inFlight = null;
     }
@@ -120,6 +164,9 @@ export async function push(): Promise<void> {
   const sync_token = await getSyncToken();
 
   const res = await api.syncPush({ sync_token, events });
+
+  // 拒否されたイベントを削除するとローカル変更が失われるため、キューを保持して通知する。
+  if (res.rejected.length > 0) throw new Error('sync_rejected');
 
   // 送信済み outbox を削除（push 中に積まれた新規分は seq が大きいので残る）。
   const maxSeq = Math.max(...rows.map((r) => r.seq as number));
@@ -146,11 +193,13 @@ export function startSyncLoop(intervalMs = 30_000): () => void {
   started = true;
 
   const trigger = () => void sync();
+  const onOffline = () => void publishPendingState();
   const onVisible = () => {
     if (document.visibilityState === 'visible') trigger();
   };
 
   window.addEventListener('online', trigger);
+  window.addEventListener('offline', onOffline);
   document.addEventListener('visibilitychange', onVisible);
   const timer = window.setInterval(trigger, intervalMs);
   trigger(); // 起動直後に1回。
@@ -158,6 +207,7 @@ export function startSyncLoop(intervalMs = 30_000): () => void {
   return () => {
     started = false;
     window.removeEventListener('online', trigger);
+    window.removeEventListener('offline', onOffline);
     document.removeEventListener('visibilitychange', onVisible);
     window.clearInterval(timer);
   };

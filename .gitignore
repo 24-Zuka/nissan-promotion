@@ -2,6 +2,8 @@ node_modules/
 dist/
 build/
 coverage/
+test-results/
+playwright-report/
 *.log
 *.sqlite
 *.sqlite-journal
@@ -11,4 +13,5 @@ coverage/
 !.env.example
 .DS_Store
 apps/api/data/
+*.tsbuildinfo
 nissan-crm.bundle

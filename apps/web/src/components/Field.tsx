@@ -2,7 +2,7 @@
  * フォーム用の汎用フィールド（label + input/select 等）。
  * 入力は淡い面（grouped）に角丸、フォーカスで 2px Ink の枠（仕様書 06 コンポーネント）。
  */
-import type { ReactNode } from 'react';
+import { cloneElement, isValidElement, useId, type ReactElement } from 'react';
 
 const baseInput =
   'w-full rounded-[10px] border border-transparent bg-grouped px-3.5 py-3 text-[16px] text-ink outline-none placeholder:text-text3 focus:border-ink';
@@ -11,18 +11,34 @@ export function Field({
   label,
   required,
   children,
+  error,
 }: {
   label: string;
   required?: boolean;
-  children: ReactNode;
+  children: ReactElement<{ id?: string; 'aria-invalid'?: boolean; 'aria-describedby'?: string; 'aria-labelledby'?: string }>;
+  error?: string;
 }) {
+  const generatedId = useId();
+  const inputId = children.props.id ?? generatedId;
+  const labelId = `${inputId}-label`;
+  const errorId = `${inputId}-error`;
+  const input = isValidElement(children)
+    ? cloneElement(children, {
+        id: inputId,
+        'aria-invalid': error ? true : undefined,
+        'aria-describedby': error ? errorId : children.props['aria-describedby'],
+        'aria-labelledby': children.props['aria-labelledby'] ?? labelId,
+      })
+    : children;
+
   return (
-    <label className="mb-3.5 block">
-      <span className="mb-1.5 block text-[13px] font-medium text-text2">
+    <label className="mb-3.5 block" htmlFor={inputId}>
+      <span id={labelId} className="mb-1.5 block text-[13px] font-medium text-text2">
         {label}
         {required && <span className="ml-1 text-overdue">*</span>}
       </span>
-      {children}
+      {input}
+      {error && <span id={errorId} className="mt-1.5 block text-xs text-overdue">{error}</span>}
     </label>
   );
 }

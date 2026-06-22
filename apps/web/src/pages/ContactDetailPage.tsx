@@ -12,22 +12,16 @@ import {
   INSPECTION_PROFILES,
   INSPECTION_PROFILE_LABEL,
   isMaintenanceTaskType,
-  RANKS,
-  renderTemplate,
   TASK_TYPE,
   TASK_TYPE_LABEL,
   todayInTokyo,
   VEHICLE_CONDITIONS,
-  type Contact,
-  type ContactCreateInput,
   type InspectionProfile,
   type Note,
   type NoteCreateInput,
-  type Rank,
   type TaskCreateInput,
   type TaskStatus,
   type TaskType,
-  type Template,
   type Vehicle,
   type VehicleCondition,
   type VehicleCreateInput,
@@ -37,17 +31,21 @@ import * as store from '../lib/store.js';
 import AppHeader from '../components/AppHeader.js';
 import RankBadge from '../components/RankBadge.js';
 import Modal from '../components/Modal.js';
-import { Card, SectionLabel } from '../components/ui.js';
 import { Field, Select, TextArea, TextInput } from '../components/Field.js';
-
-const OPTIONAL_FIELDS: { key: keyof Contact; label: string }[] = [
-  { key: 'family', label: '家族構成' },
-  { key: 'usage', label: '用途' },
-  { key: 'budget', label: '予算' },
-  { key: 'desired_equipment', label: '希望装備' },
-  { key: 'rival_car', label: '競合車' },
-  { key: 'insurance_status', label: '保険状況' },
-];
+import ErrorState from '../components/ErrorState.js';
+import { getFieldErrors } from '../lib/formErrors.js';
+import DeleteModal from '../features/contact-detail/DeleteModal.js';
+import MessageModal from '../features/contact-detail/MessageModal.js';
+import EditContactModal from '../features/contact-detail/EditContactModal.js';
+import { OPTIONAL_CONTACT_FIELDS as OPTIONAL_FIELDS } from '../features/contact-detail/contactFields.js';
+import {
+  ActionButton as ActionBtn,
+  DetailSection as Section,
+  Empty,
+  InfoRow,
+  InlineLoadError,
+  RowActions,
+} from '../features/contact-detail/DisplayParts.js';
 
 export default function ContactDetailPage() {
   const { id = '' } = useParams();
@@ -113,7 +111,7 @@ export default function ContactDetailPage() {
       />
 
       {contactQ.isLoading && <div className="p-6 text-center text-text2">読み込み中…</div>}
-      {contactQ.isError && <div className="p-6 text-center text-overdue">読み込みに失敗しました。</div>}
+      {contactQ.isError && <div className="mx-auto max-w-content p-4"><ErrorState onRetry={() => void contactQ.refetch()} /></div>}
 
       {c && (
         <div className="mx-auto max-w-content space-y-4 p-4">
@@ -159,7 +157,9 @@ export default function ContactDetailPage() {
 
           {/* 未完タスク */}
           <Section title="未完タスク">
-            {tasksQ.data && tasksQ.data.length > 0 ? (
+            {tasksQ.isError ? (
+              <InlineLoadError onRetry={() => void tasksQ.refetch()} />
+            ) : tasksQ.data && tasksQ.data.length > 0 ? (
               <ul className="divide-y divide-separator">
                 {tasksQ.data.map((t) => (
                   <li key={t.id} className="flex items-center justify-between gap-2 py-2 text-sm">
@@ -188,7 +188,9 @@ export default function ContactDetailPage() {
 
           {/* 車両リスト */}
           <Section title="車両リスト">
-            {vehiclesQ.data && vehiclesQ.data.length > 0 ? (
+            {vehiclesQ.isError ? (
+              <InlineLoadError onRetry={() => void vehiclesQ.refetch()} />
+            ) : vehiclesQ.data && vehiclesQ.data.length > 0 ? (
               <ul className="divide-y divide-separator">
                 {vehiclesQ.data.map((v: Vehicle) => (
                   <li key={v.id} className="flex items-start justify-between gap-2 py-2 text-sm">
@@ -225,7 +227,9 @@ export default function ContactDetailPage() {
 
           {/* 直近メモ */}
           <Section title="直近メモ">
-            {notesQ.data && notesQ.data.length > 0 ? (
+            {notesQ.isError ? (
+              <InlineLoadError onRetry={() => void notesQ.refetch()} />
+            ) : notesQ.data && notesQ.data.length > 0 ? (
               <ul className="space-y-3">
                 {notesQ.data.slice(0, 5).map((n) => (
                   <li key={n.id} className="flex items-start justify-between gap-2 text-sm">
@@ -309,7 +313,7 @@ export default function ContactDetailPage() {
         />
       )}
       {modal === 'edit' && c && (
-        <EditModal
+        <EditContactModal
           contact={c}
           onClose={close}
           onDone={() => invalidate([['contact', id], ['contacts'], ['tasks']])}
@@ -362,184 +366,6 @@ export default function ContactDetailPage() {
   );
 }
 
-/* ---------- 顧客編集（ランク・氏名・連絡先・任意項目） ---------- */
-
-function EditModal({
-  contact,
-  onClose,
-  onDone,
-}: {
-  contact: Contact;
-  onClose: () => void;
-  onDone: () => void;
-}) {
-  const [name, setName] = useState(contact.name);
-  const [rank, setRank] = useState<Rank>(contact.rank);
-  const [phone, setPhone] = useState(contact.phone ?? '');
-  const [email, setEmail] = useState(contact.email ?? '');
-  const [optional, setOptional] = useState<Record<string, string>>(() =>
-    Object.fromEntries(
-      OPTIONAL_FIELDS.map((f) => [f.key as string, (contact[f.key] as string | null) ?? '']),
-    ),
-  );
-
-  const update = useMutation({
-    mutationFn: (input: Partial<ContactCreateInput>) => store.updateContact(contact.id, input),
-    onSuccess: onDone,
-  });
-
-  const submit = () => {
-    if (!name.trim()) return;
-    const input: Partial<ContactCreateInput> = {
-      name: name.trim(),
-      rank,
-      phone: phone.trim() || undefined,
-      email: email.trim() || undefined,
-    };
-    for (const f of OPTIONAL_FIELDS) {
-      (input as Record<string, unknown>)[f.key as string] = optional[f.key as string]?.trim() || undefined;
-    }
-    update.mutate(input);
-  };
-
-  return (
-    <Modal open title="顧客を編集" onClose={onClose}>
-      <Field label="氏名" required>
-        <TextInput value={name} onChange={(e) => setName(e.target.value)} />
-      </Field>
-      <Field label="ランク" required>
-        <Select value={rank} onChange={(e) => setRank(e.target.value as Rank)}>
-          {RANKS.map((r) => (
-            <option key={r} value={r}>
-              {r}
-            </option>
-          ))}
-        </Select>
-      </Field>
-      <Field label="電話番号">
-        <TextInput value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" />
-      </Field>
-      <Field label="メール">
-        <TextInput value={email} onChange={(e) => setEmail(e.target.value)} inputMode="email" />
-      </Field>
-      {OPTIONAL_FIELDS.map((f) => (
-        <Field key={f.key as string} label={f.label}>
-          <TextInput
-            value={optional[f.key as string] ?? ''}
-            onChange={(e) =>
-              setOptional((prev) => ({ ...prev, [f.key as string]: e.target.value }))
-            }
-          />
-        </Field>
-      ))}
-
-      {update.isError && <div className="mb-2 text-sm text-overdue">保存に失敗しました。</div>}
-
-      <button
-        type="button"
-        onClick={submit}
-        disabled={!name.trim() || update.isPending}
-        className="mt-1 w-full rounded-xl bg-ink py-3 font-semibold text-on-ink active:opacity-80 disabled:opacity-40"
-      >
-        {update.isPending ? '保存中…' : '保存'}
-      </button>
-    </Modal>
-  );
-}
-
-/* ---------- 汎用削除（確認）。顧客/車両/メモ/タスクで共用 ---------- */
-
-function DeleteModal({
-  title,
-  message,
-  onClose,
-  onDeleted,
-  deleteFn,
-}: {
-  title: string;
-  message: string;
-  onClose: () => void;
-  onDeleted: () => void;
-  deleteFn: () => Promise<void>;
-}) {
-  const del = useMutation({ mutationFn: deleteFn, onSuccess: onDeleted });
-
-  return (
-    <Modal open title={title} onClose={onClose}>
-      <p className="mb-4 text-sm text-text2">{message}</p>
-      {del.isError && <div className="mb-2 text-sm text-overdue">削除に失敗しました。</div>}
-      <div className="flex gap-2">
-        <button
-          type="button"
-          onClick={onClose}
-          className="flex-1 rounded-xl border border-separator bg-surface py-3 font-semibold text-ink active:bg-tint"
-        >
-          キャンセル
-        </button>
-        <button
-          type="button"
-          onClick={() => del.mutate()}
-          disabled={del.isPending}
-          className="flex-1 rounded-xl bg-overdue py-3 font-semibold text-white active:opacity-80 disabled:opacity-40"
-        >
-          {del.isPending ? '削除中…' : '削除する'}
-        </button>
-      </div>
-    </Modal>
-  );
-}
-
-/* ---------- 表示用の小コンポーネント ---------- */
-
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section>
-      <SectionLabel>{title}</SectionLabel>
-      <Card className="p-4">{children}</Card>
-    </section>
-  );
-}
-
-function InfoRow({ label, value }: { label: string; value: string | null }) {
-  if (value == null || value === '') return null;
-  return (
-    <div className="flex justify-between gap-3 py-2 text-sm">
-      <dt className="text-text2">{label}</dt>
-      <dd className="text-right text-ink">{value}</dd>
-    </div>
-  );
-}
-
-function Empty({ children }: { children: React.ReactNode }) {
-  return <div className="py-2 text-sm text-text3">{children}</div>;
-}
-
-function ActionBtn({ label, onClick }: { label: string; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="rounded-xl border border-separator bg-surface py-2.5 text-sm font-semibold text-ink active:bg-tint"
-    >
-      {label}
-    </button>
-  );
-}
-
-/** リスト行の「編集 / 削除」操作。 */
-function RowActions({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => void }) {
-  return (
-    <div className="flex shrink-0 items-center gap-3">
-      <button type="button" onClick={onEdit} className="text-xs font-semibold text-ink active:opacity-60">
-        編集
-      </button>
-      <button type="button" onClick={onDelete} className="text-xs font-semibold text-overdue active:opacity-60">
-        削除
-      </button>
-    </div>
-  );
-}
-
 /* ---------- メモ追加（次アクション同時登録あり） ---------- */
 
 function NoteModal({
@@ -565,9 +391,11 @@ function NoteModal({
     mutationFn: (input: NoteCreateInput) => store.createNote(input),
     onSuccess: onDone,
   });
+  const errors = getFieldErrors(create.error);
 
+  const taskTypeBlocked = withTask && isMaintenanceTaskType(taskType);
   const submit = () => {
-    if (!summary.trim()) return;
+    if (!summary.trim() || taskTypeBlocked) return;
     const input: NoteCreateInput = {
       contact_id: contactId,
       date,
@@ -586,7 +414,7 @@ function NoteModal({
       <Field label="日付" required>
         <TextInput type="date" value={date} onChange={(e) => setDate(e.target.value)} />
       </Field>
-      <Field label="要点" required>
+      <Field label="要点" required error={errors.summary}>
         <TextArea rows={2} value={summary} onChange={(e) => setSummary(e.target.value)} />
       </Field>
       <Field label="相手の反応">
@@ -626,12 +454,12 @@ function NoteModal({
         </div>
       )}
 
-      {create.isError && <div className="mb-2 text-sm text-overdue">登録に失敗しました。</div>}
+      {create.isError && <div className="mb-2 text-sm text-overdue">{errors.task ?? '登録に失敗しました。入力内容をご確認ください。'}</div>}
 
       <button
         type="button"
         onClick={submit}
-        disabled={!summary.trim() || create.isPending}
+        disabled={!summary.trim() || taskTypeBlocked || create.isPending}
         className="mt-1 w-full rounded-xl bg-ink py-3 font-semibold text-on-ink active:opacity-80 disabled:opacity-40"
       >
         {create.isPending ? '登録中…' : '登録'}
@@ -663,6 +491,7 @@ function TaskModal({
     mutationFn: (input: TaskCreateInput) => store.createTask(input),
     onSuccess: onDone,
   });
+  const errors = getFieldErrors(create.error);
 
   const needsVehicle = isMaintenanceTaskType(type);
   const blocked = !title.trim() || (needsVehicle && !vehicleId);
@@ -689,17 +518,17 @@ function TaskModal({
           ))}
         </Select>
       </Field>
-      <Field label="タイトル" required>
+      <Field label="タイトル" required error={errors.title}>
         <TextInput
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder={TASK_TYPE_LABEL[type]}
         />
       </Field>
-      <Field label="期限" required>
+      <Field label="期限" required error={errors.due_date}>
         <TextInput type="date" value={due} onChange={(e) => setDue(e.target.value)} />
       </Field>
-      <Field label="車両" required={needsVehicle}>
+      <Field label="車両" required={needsVehicle} error={errors.vehicle_id}>
         <Select value={vehicleId} onChange={(e) => setVehicleId(e.target.value)}>
           <option value="">{needsVehicle ? '車両を選択' : '（任意）'}</option>
           {vehicles.map((v) => (
@@ -729,96 +558,6 @@ function TaskModal({
   );
 }
 
-/* ---------- テンプレートから文面生成 ---------- */
-
-function MessageModal({
-  contact,
-  vehicles,
-  notes,
-  tasks,
-  onClose,
-}: {
-  contact: Contact;
-  vehicles: Vehicle[];
-  notes: Note[];
-  tasks: TaskWithContact[];
-  onClose: () => void;
-}) {
-  const templatesQ = useQuery({ queryKey: ['templates'], queryFn: () => store.listTemplates() });
-  const [templateId, setTemplateId] = useState('');
-  const [text, setText] = useState('');
-  const [copied, setCopied] = useState(false);
-
-  // 差し込み元: 顧客名 / 直近の未完タスク期限 / 先頭車両の車名 / 最新メモ要点。
-  const vars = {
-    顧客名: contact.name,
-    予定日: tasks[0]?.due_date ?? '',
-    車種: vehicles[0]?.name ?? '',
-    前回要点: notes[0]?.summary ?? '',
-  };
-
-  const apply = (tpl: Template | undefined) => {
-    setCopied(false);
-    setText(tpl ? renderTemplate(tpl.body, vars) : '');
-  };
-
-  const onPick = (id: string) => {
-    setTemplateId(id);
-    apply((templatesQ.data ?? []).find((t) => t.id === id));
-  };
-
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(true);
-    } catch {
-      setCopied(false);
-    }
-  };
-
-  const templates = templatesQ.data ?? [];
-
-  return (
-    <Modal open title="文面生成" onClose={onClose}>
-      {templates.length === 0 ? (
-        <p className="text-sm text-text2">
-          テンプレートがありません。設定 → 文例テンプレートで作成してください。
-        </p>
-      ) : (
-        <>
-          <Field label="テンプレート" required>
-            <Select value={templateId} onChange={(e) => onPick(e.target.value)}>
-              <option value="">選択してください</option>
-              {templates.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                </option>
-              ))}
-            </Select>
-          </Field>
-
-          <Field label="生成された文面（編集可）">
-            <TextArea rows={6} value={text} onChange={(e) => setText(e.target.value)} />
-          </Field>
-
-          <button
-            type="button"
-            onClick={copy}
-            disabled={!text}
-            className="mt-1 w-full rounded-xl bg-ink py-3 font-semibold text-on-ink active:opacity-80 disabled:opacity-40"
-          >
-            {copied ? 'コピーしました ✓' : 'クリップボードにコピー'}
-          </button>
-          <p className="mt-2 text-xs text-text3">
-            差し込み: 顧客名={vars.顧客名 || '—'} / 予定日={vars.予定日 || '—'} / 車種=
-            {vars.車種 || '—'} / 前回要点={vars.前回要点 ? '最新メモ' : '—'}
-          </p>
-        </>
-      )}
-    </Modal>
-  );
-}
-
 /* ---------- 車両追加 ---------- */
 
 function VehicleModal({
@@ -843,9 +582,11 @@ function VehicleModal({
     mutationFn: (input: VehicleCreateInput) => store.createVehicle(input),
     onSuccess: onDone,
   });
+  const errors = getFieldErrors(create.error);
 
   const usedNeedsShaken = condition === 'used' && !shaken;
-  const blocked = !name.trim() || usedNeedsShaken;
+  const missingGenerationDate = generate && condition === 'new' && !delivery && !registration;
+  const blocked = !name.trim() || usedNeedsShaken || missingGenerationDate;
 
   const submit = () => {
     if (blocked) return;
@@ -882,14 +623,17 @@ function VehicleModal({
       <Field label="登録日">
         <TextInput type="date" value={registration} onChange={(e) => setRegistration(e.target.value)} />
       </Field>
-      <Field label="納車日">
+      <Field label="納車日" error={errors.delivery_date}>
         <TextInput type="date" value={delivery} onChange={(e) => setDelivery(e.target.value)} />
       </Field>
-      <Field label="車検満了日" required={condition === 'used'}>
+      <Field label="車検満了日" required={condition === 'used'} error={errors.shaken_expiry_date}>
         <TextInput type="date" value={shaken} onChange={(e) => setShaken(e.target.value)} />
       </Field>
       {usedNeedsShaken && (
         <div className="mb-2 text-xs text-overdue">中古車は車検満了日が必須です。</div>
+      )}
+      {missingGenerationDate && (
+        <div className="mb-2 text-xs text-overdue">点検タスクを自動生成する場合は登録日または納車日が必要です。</div>
       )}
       <Field label="車検周期">
         <Select value={profile} onChange={(e) => setProfile(e.target.value as InspectionProfile)}>
@@ -943,6 +687,7 @@ function EditVehicleModal({
     mutationFn: (input: Partial<VehicleCreateInput>) => store.updateVehicle(vehicle.id, input),
     onSuccess: onDone,
   });
+  const errors = getFieldErrors(update.error);
 
   const usedNeedsShaken = condition === 'used' && !shaken;
   const blocked = !name.trim() || usedNeedsShaken;
@@ -983,7 +728,7 @@ function EditVehicleModal({
       <Field label="納車日">
         <TextInput type="date" value={delivery} onChange={(e) => setDelivery(e.target.value)} />
       </Field>
-      <Field label="車検満了日" required={condition === 'used'}>
+      <Field label="車検満了日" required={condition === 'used'} error={errors.shaken_expiry_date}>
         <TextInput type="date" value={shaken} onChange={(e) => setShaken(e.target.value)} />
       </Field>
       {usedNeedsShaken && (
@@ -1042,6 +787,7 @@ function EditNoteModal({
       }),
     onSuccess: onDone,
   });
+  const errors = getFieldErrors(update.error);
 
   const submit = () => {
     if (!summary.trim()) return;
@@ -1053,7 +799,7 @@ function EditNoteModal({
       <Field label="日付" required>
         <TextInput type="date" value={date} onChange={(e) => setDate(e.target.value)} />
       </Field>
-      <Field label="要点" required>
+      <Field label="要点" required error={errors.summary}>
         <TextArea rows={2} value={summary} onChange={(e) => setSummary(e.target.value)} />
       </Field>
       <Field label="相手の反応">
@@ -1108,6 +854,7 @@ function EditTaskModal({
     mutationFn: (input: store.TaskEditInput) => store.updateTask(task.id, input),
     onSuccess: onDone,
   });
+  const errors = getFieldErrors(update.error);
 
   const needsVehicle = isMaintenanceTaskType(type);
   const blocked = !title.trim() || (needsVehicle && !vehicleId);
@@ -1136,13 +883,13 @@ function EditTaskModal({
           ))}
         </Select>
       </Field>
-      <Field label="タイトル" required>
+      <Field label="タイトル" required error={errors.title}>
         <TextInput value={title} onChange={(e) => setTitle(e.target.value)} />
       </Field>
       <Field label="詳細">
         <TextInput value={detail} onChange={(e) => setDetail(e.target.value)} />
       </Field>
-      <Field label="期限" required>
+      <Field label="期限" required error={errors.due_date}>
         <TextInput type="date" value={due} onChange={(e) => setDue(e.target.value)} />
       </Field>
       <Field label="状態" required>
@@ -1154,7 +901,7 @@ function EditTaskModal({
           ))}
         </Select>
       </Field>
-      <Field label="車両" required={needsVehicle}>
+      <Field label="車両" required={needsVehicle} error={errors.vehicle_id}>
         <Select value={vehicleId} onChange={(e) => setVehicleId(e.target.value)}>
           <option value="">{needsVehicle ? '車両を選択' : '（任意）'}</option>
           {vehicles.map((v) => (

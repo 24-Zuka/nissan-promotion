@@ -4,6 +4,7 @@
 import { z } from 'zod';
 import {
   INSPECTION_PROFILES,
+  isMaintenanceTaskType,
   RANKS,
   TASK_STATUSES,
   TASK_TYPE,
@@ -48,7 +49,17 @@ export const vehicleCreateSchema = z
   .refine((v) => v.condition !== 'used' || !!v.shaken_expiry_date, {
     message: '中古車は車検満了日が必須です',
     path: ['shaken_expiry_date'],
-  });
+  })
+  .refine(
+    (v) =>
+      !v.generate_maintenance ||
+      v.condition !== 'new' ||
+      !!(v.delivery_date ?? v.registration_date),
+    {
+      message: '点検タスクを自動生成する場合は納車日または登録日が必要です',
+      path: ['delivery_date'],
+    },
+  );
 export const vehicleUpdateSchema = z.object({
   name: z.string().nullish(),
   model_code: z.string().nullish(),
@@ -59,23 +70,31 @@ export const vehicleUpdateSchema = z.object({
   inspection_profile: z.enum(INSPECTION_PROFILES).optional(),
 });
 
-export const noteCreateSchema = z.object({
-  contact_id: z.string().min(1),
-  date: dateStr,
-  summary: z.string().min(1, '要点は必須です'),
-  reaction: z.string().nullish(),
-  next_action: z.string().nullish(),
-  // メモ追加時に同時登録するタスク（時短UI）。任意。
-  task: z
-    .object({
-      type: z.enum(taskTypeValues),
-      title: z.string().min(1),
-      detail: z.string().nullish(),
-      due_date: dateStr,
-      notify: z.boolean().optional(),
-    })
-    .optional(),
-});
+export const noteCreateSchema = z
+  .object({
+    contact_id: z.string().min(1),
+    date: dateStr,
+    summary: z.string().min(1, '要点は必須です'),
+    reaction: z.string().nullish(),
+    next_action: z.string().nullish(),
+    // メモ追加時に同時登録するタスク（時短UI）。任意。
+    task: z
+      .object({
+        type: z.enum(taskTypeValues),
+        title: z.string().min(1, 'タイトルは必須です'),
+        detail: z.string().nullish(),
+        due_date: dateStr,
+        notify: z.boolean().optional(),
+      })
+      .optional(),
+  })
+  .refine(
+    (v) => !v.task || !isMaintenanceTaskType(v.task.type as import('./domain.js').TaskType),
+    {
+      message: 'メンテナンスタスクは「タスク追加」から車両を指定してください',
+      path: ['task', 'type'],
+    },
+  );
 export const noteUpdateSchema = z.object({
   date: dateStr.optional(),
   summary: z.string().min(1).optional(),
@@ -83,15 +102,20 @@ export const noteUpdateSchema = z.object({
   next_action: z.string().nullish(),
 });
 
-export const taskCreateSchema = z.object({
-  contact_id: z.string().min(1),
-  vehicle_id: z.string().nullish(),
-  type: z.enum(taskTypeValues),
-  title: z.string().min(1),
-  detail: z.string().nullish(),
-  due_date: dateStr,
-  notify: z.boolean().optional(),
-});
+export const taskCreateSchema = z
+  .object({
+    contact_id: z.string().min(1),
+    vehicle_id: z.string().nullish(),
+    type: z.enum(taskTypeValues),
+    title: z.string().min(1, 'タイトルは必須です'),
+    detail: z.string().nullish(),
+    due_date: dateStr,
+    notify: z.boolean().optional(),
+  })
+  .refine((v) => !isMaintenanceTaskType(v.type as import('./domain.js').TaskType) || !!v.vehicle_id, {
+    message: 'メンテナンスタスクは車両の指定が必要です',
+    path: ['vehicle_id'],
+  });
 export const taskUpdateSchema = z.object({
   vehicle_id: z.string().nullish(),
   type: z.enum(taskTypeValues).optional(),

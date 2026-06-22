@@ -236,12 +236,20 @@ pages/ ──▶ lib/store.ts ──▶ lib/sync.ts ──▶ lib/db.ts（Dexie/
 
 - Notification API ＋ Service Worker。`notify_offsets_days`（既定 `[30,7,1,0]`＝期限の何日前か、0=当日）でタイミングをユーザーがカスタム可能（設定画面でチップ追加/削除）。
 - iOS PWA の通知制約があるため、許可状態に応じて設定画面で許可導線を出す。
+- 同一の `(task_id, offset, 東京日付)` は1回だけ通知する。Service Worker 登録が利用できる場合は `showNotification` を使う。
+- Web Push は未実装のため、通知判定はアプリを開いた時に行う。この制約は設定画面にも明示する。
+
+### 11.1 ローカルバックアップ
+
+- `BackupEnvelopeV1` は `contacts / vehicles / notes / tasks / templates / settings` のみを含む。PIN、認証トークン、Google認証情報、outbox、sync token は含めない。
+- JSON出力は両モード、復元は静的モードのみ。復元前に現在データをJSON保存し、zod検証後に単一Dexieトランザクションで全置換する。
+- 顧客一覧はExcel互換のUTF-8 BOM付きCSVとして出力できる。
 
 ---
 
 ## 12. UI / デザインシステム
 
-「Apple 純正風・無彩色」デザイン（仕様書 v1.0）。CSS カスタムプロパティで **Light/Dark を OS 設定に追従**（`@media (prefers-color-scheme: dark)`、`index.css`）。Tailwind は変数を参照（`tailwind.config.js`）。
+「Apple 純正風・無彩色」デザイン（仕様書 v1.0）。CSS カスタムプロパティで Light/Dark を切り替える。初期値はOS設定に追従し、設定画面で「端末設定・ライト・ダーク」を明示選択できる（`theme.tsx`、`index.css`）。Tailwind は変数を参照（`tailwind.config.js`）。
 
 ### 12.1 カラートークン
 | 役割 | トークン | 用途 |
@@ -261,6 +269,8 @@ pages/ ──▶ lib/store.ts ──▶ lib/sync.ts ──▶ lib/db.ts（Dexie/
 - `RankBadge`: A=Ink ベタ / B=中間グレー / C=薄面 / D=アウトラインのみ（色相に頼らない単色表現）。
 - `TaskRow`: 円形チェックボックス＋期限色（overdue/today/…）。
 - `ui.tsx`: `Button`(primary/secondary/outline/destructive)・`Card`・`SectionLabel`（mono 大文字）。
+- `Modal`: Esc終了、フォーカストラップ、初期フォーカス、終了後のフォーカス復帰、背景スクロール抑止に対応。
+- PWAアイコンは192px / 512px / maskable / Apple Touch Iconを同梱する。
 
 ### 12.3 画面遷移
 `/login → /（ホーム）→ /contacts → /contacts/:id → /settings`、`/templates`（設定から）。未認証は `/login` へ（`RequireAuth`）。
@@ -298,8 +308,9 @@ pages/ ──▶ lib/store.ts ──▶ lib/sync.ts ──▶ lib/db.ts（Dexie/
 | UT | shared（日付・メンテ生成・ホーム分類・同期差分・テンプレ差し込み） | vitest |
 | IT | api（認証・CRUD・sync push/pull・衝突解決） | supertest ＋ 一時 SQLite |
 | E2E（手動/Playwright） | ログイン → 顧客/車両/メモ/タスクの作成・編集・削除 → リロード保持 → ホーム分類・ワンタップ完了 | Playwright |
+| Web UT | バックアップ、通知重複防止、フォーム関連付け、モーダル操作 | Vitest + Testing Library + fake-indexeddb |
 
-検証コマンド: `npm run typecheck`（3 パッケージ）/ `npm test`（shared UT + api IT）/ `npm run build`。
+検証コマンド: `npm run lint` / `npm run typecheck`（3 パッケージ）/ `npm test`（shared UT + api IT + Web UT）/ `npm run e2e` / `npm run build`。
 
 ---
 

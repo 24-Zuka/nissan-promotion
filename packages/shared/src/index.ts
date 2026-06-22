@@ -6,3 +6,4 @@ export * from './schemas.js';
 export * from './home.js';
 export * from './template.js';
 export * from './syncing.js';
+export * from './backup.js';

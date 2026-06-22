@@ -4,14 +4,15 @@
  *   /login → /(ホーム) → /contacts → /contacts/:id → 設定 /settings
  */
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
-import type { ReactNode } from 'react';
+import { lazy, Suspense, type ReactNode } from 'react';
 import { useAuth } from './lib/auth.js';
-import LoginPage from './pages/LoginPage.js';
-import HomePage from './pages/HomePage.js';
-import ContactsPage from './pages/ContactsPage.js';
-import ContactDetailPage from './pages/ContactDetailPage.js';
-import SettingsPage from './pages/SettingsPage.js';
-import TemplatesPage from './pages/TemplatesPage.js';
+
+const LoginPage = lazy(() => import('./pages/LoginPage.js'));
+const HomePage = lazy(() => import('./pages/HomePage.js'));
+const ContactsPage = lazy(() => import('./pages/ContactsPage.js'));
+const ContactDetailPage = lazy(() => import('./pages/ContactDetailPage.js'));
+const SettingsPage = lazy(() => import('./pages/SettingsPage.js'));
+const TemplatesPage = lazy(() => import('./pages/TemplatesPage.js'));
 
 function RequireAuth({ children }: { children: ReactNode }) {
   const { isAuthed } = useAuth();
@@ -22,7 +23,8 @@ function RequireAuth({ children }: { children: ReactNode }) {
 
 export default function App() {
   return (
-    <Routes>
+    <Suspense fallback={<div className="grid min-h-screen place-items-center text-sm text-text2">読み込み中…</div>}>
+      <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route
         path="/"
@@ -65,6 +67,7 @@ export default function App() {
         }
       />
       <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+      </Routes>
+    </Suspense>
   );
 }

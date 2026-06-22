@@ -35,17 +35,33 @@ interface NotifiableTask {
   contact_name?: string;
 }
 
-export function scheduleNotifications(
+const SENT_KEY = 'crm.notification_sent.v1';
+
+function readSent(today: string): Set<string> {
+  try {
+    const value = JSON.parse(localStorage.getItem(SENT_KEY) ?? '{}') as { date?: string; tags?: string[] };
+    return value.date === today ? new Set(value.tags ?? []) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
+function writeSent(today: string, sent: Set<string>): void {
+  localStorage.setItem(SENT_KEY, JSON.stringify({ date: today, tags: [...sent] }));
+}
+
+export async function scheduleNotifications(
   tasks: NotifiableTask[],
   offsets: number[],
   enabled: boolean,
-): void {
+): Promise<void> {
   if (!enabled) return;
   if (!isNotificationSupported()) return;
   if (Notification.permission !== 'granted') return;
 
   const today = todayInTokyo();
   const offsetSet = new Set(offsets);
+  const sent = readSent(today);
 
   for (const task of tasks) {
     const daysUntilDue = diffDays(task.due_date, today);
@@ -57,10 +73,19 @@ export function scheduleNotifications(
         : `${daysUntilDue}日後に期限`;
     const who = task.contact_name ? `（${task.contact_name}）` : '';
 
-    new Notification(`${label}: ${task.title}${who}`, {
+    const tag = `task-${task.id}-${daysUntilDue}-${today}`;
+    if (sent.has(tag)) continue;
+    const options: NotificationOptions = {
       body: `期限: ${task.due_date}`,
-      tag: `task-${task.id}-${daysUntilDue}`,
-      icon: '/favicon.ico',
-    });
+      tag,
+      icon: `${import.meta.env.BASE_URL}icons/icon-192.png`,
+    };
+    const registration = 'serviceWorker' in navigator
+      ? await navigator.serviceWorker.getRegistration()
+      : undefined;
+    if (registration) await registration.showNotification(`${label}: ${task.title}${who}`, options);
+    else new Notification(`${label}: ${task.title}${who}`, options);
+    sent.add(tag);
   }
+  writeSent(today, sent);
 }

@@ -41,11 +41,13 @@ export default function TaskRow({
         onClick={() => onComplete(task.id)}
         disabled={completing}
         aria-label="完了にする"
-        className="grid h-7 w-7 shrink-0 place-items-center rounded-full border-[1.5px] border-rank-d-border text-transparent transition-colors active:border-done active:bg-done active:text-on-ink disabled:opacity-50"
+        className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-transparent transition-colors active:text-on-ink disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
       >
-        <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="3">
-          <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
+        <span className="grid h-7 w-7 place-items-center rounded-full border-[1.5px] border-rank-d-border">
+          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="3">
+            <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </span>
       </button>
     </div>
   );

@@ -6,19 +6,51 @@
 const ACCESS_KEY = 'crm.access_token';
 const REFRESH_KEY = 'crm.refresh_token';
 
+export type TokenPersistence = 'session' | 'local';
+
+function read(key: string): string | null {
+  return sessionStorage.getItem(key) ?? localStorage.getItem(key);
+}
+
+function clearBoth(key: string): void {
+  sessionStorage.removeItem(key);
+  localStorage.removeItem(key);
+}
+
+let persistence: TokenPersistence = localStorage.getItem(REFRESH_KEY) ? 'local' : 'session';
+
 export const tokens = {
   get access(): string | null {
-    return localStorage.getItem(ACCESS_KEY);
+    return read(ACCESS_KEY);
   },
   get refresh(): string | null {
-    return localStorage.getItem(REFRESH_KEY);
+    return read(REFRESH_KEY);
   },
-  set(access: string, refresh?: string): void {
-    localStorage.setItem(ACCESS_KEY, access);
-    if (refresh) localStorage.setItem(REFRESH_KEY, refresh);
+  get persistence(): TokenPersistence {
+    return persistence;
+  },
+  set(access: string, refresh?: string, nextPersistence = persistence): void {
+    persistence = nextPersistence;
+    const storage = persistence === 'local' ? localStorage : sessionStorage;
+    clearBoth(ACCESS_KEY);
+    storage.setItem(ACCESS_KEY, access);
+    if (refresh) {
+      clearBoth(REFRESH_KEY);
+      storage.setItem(REFRESH_KEY, refresh);
+    }
+  },
+  setPersistence(next: TokenPersistence): void {
+    const access = read(ACCESS_KEY);
+    const refresh = read(REFRESH_KEY);
+    persistence = next;
+    clearBoth(ACCESS_KEY);
+    clearBoth(REFRESH_KEY);
+    const storage = next === 'local' ? localStorage : sessionStorage;
+    if (access) storage.setItem(ACCESS_KEY, access);
+    if (refresh) storage.setItem(REFRESH_KEY, refresh);
   },
   clear(): void {
-    localStorage.removeItem(ACCESS_KEY);
-    localStorage.removeItem(REFRESH_KEY);
+    clearBoth(ACCESS_KEY);
+    clearBoth(REFRESH_KEY);
   },
 };

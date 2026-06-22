@@ -61,6 +61,9 @@ export default function TabBar() {
             <Link
               key={t.to}
               to={t.to}
+              onClick={() => {
+                if (on) window.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
+              }}
               className="flex flex-1 flex-col items-center gap-1 py-1 active:opacity-60"
               style={{ color: on ? 'var(--ink)' : 'var(--text-3)' }}
               aria-current={on ? 'page' : undefined}
