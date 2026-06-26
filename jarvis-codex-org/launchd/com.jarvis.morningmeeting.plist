@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  朝会を毎朝7:30に実行する launchd 定義。
+  設置: ~/Library/LaunchAgents/com.jarvis.morningmeeting.plist
+  反映: launchctl load ~/Library/LaunchAgents/com.jarvis.morningmeeting.plist
+  解除: launchctl unload ~/Library/LaunchAgents/com.jarvis.morningmeeting.plist
+  ※ ProgramArguments のパスを実際の設置先に書き換えること。
+  ※ EnvironmentVariables に Obsidian/トークン等を渡す（鍵はKeychain推奨）。
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.jarvis.morningmeeting</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>/Users/kai/jarvis-codex-org/scripts/morning_meeting.sh</string>
+    </array>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+        <key>VAULT</key>
+        <string>/Users/kai/Obsidian/Jarvis</string>
+        <key>OBSIDIAN_API_KEY</key>
+        <string>__SET_VIA_KEYCHAIN_OR_HERE__</string>
+    </dict>
+
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key><integer>7</integer>
+        <key>Minute</key><integer>30</integer>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>/tmp/jarvis_morning.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/jarvis_morning.err.log</string>
+</dict>
+</plist>

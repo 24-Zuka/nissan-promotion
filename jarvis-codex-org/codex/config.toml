@@ -1,0 +1,125 @@
+# =============================================================================
+#  ~/.codex/config.toml   —  西塚海さん専用 / JARVIS型エージェント組織 基盤設定
+# -----------------------------------------------------------------------------
+#  設置先: ~/.codex/config.toml  (= $CODEX_HOME/config.toml)
+#  原則:   「ChatGPTログイン経路」のみを使い、API課金（メーター課金）を発生させない。
+#  検証日: 2026-06  / Codex CLI 0.12x 系の仕様に準拠
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# 1. 既定モデル（メインのビルド作業用）
+# -----------------------------------------------------------------------------
+#  ChatGPT Plus ログインでは、ここで指定したモデルがプランの 5時間ウィンドウ制限の
+#  対象になる（API課金ではない）。既定は gpt-5.5。
+#  ※ もし「The 'gpt-5.5' model is not supported when using Codex with a ChatGPT
+#     account」というエラーが出る場合は、この行を gpt-5.4 に変えるか、行ごと
+#     コメントアウトしてプラン既定に任せること。
+model = "gpt-5.5"
+
+# model_provider は明示しない＝組み込み "openai"（ChatGPTログイン）が使われる。
+# ローカルモデルへの切替は下部の [profiles.local_review] で行う（--profile で起動）。
+
+# 承認・サンドボックスの既定（メイン対話セッション）
+approval_policy = "on-request"     # 危険操作の前に確認を求める
+sandbox_mode   = "workspace-write" # 作業ツリー内の書き込みは許可、外は不可
+
+# 認証経路を ChatGPT に固定し、誤って API キー課金経路へ落ちるのを防ぐ。
+forced_login_method = "chatgpt"
+
+# 資格情報はOSキーチェーンに保存（平文ファイルを避ける）
+cli_auth_credentials_store = "keyring"
+
+# Web検索（プラン内で利用可能な範囲）。"cached" は低コスト、"live" は最新。
+web_search = "cached"
+
+# -----------------------------------------------------------------------------
+# 2. サブエージェント並列制御  ([agents])
+# -----------------------------------------------------------------------------
+#  実用域は同時 3〜5。6 がソフト上限。max_depth は 1 のまま（再帰委譲は
+#  トークン爆発の原因になるため厳禁）。
+[agents]
+max_threads = 4
+max_depth   = 1
+job_max_runtime_seconds = 600
+
+# -----------------------------------------------------------------------------
+# 3. MCP サーバー（外部記憶・ツール接続）
+# -----------------------------------------------------------------------------
+#  注意: MCPサーバーは毎メッセージにコンテキストを足し、Plus制限を余計に食う。
+#       使わないサーバーは enabled = false で止めること（OpenAI公式の助言）。
+
+# --- Obsidian（共有記憶・ハンドオフ・意思決定ログの読み書き）-------------------
+#  Obsidian の "Local REST API" プラグインが内蔵するMCPサーバーに接続する。
+#  HTTPS(27124)は自己署名証明書のため、簡単のため平文HTTP(27123)を既定にする。
+#    → Obsidian 設定 → Local REST API → "Enable HTTP server" を ON にすること。
+#    → APIキーは同設定画面からコピーし、環境変数 OBSIDIAN_API_KEY に入れる
+#      （シェルの ~/.zshrc などで export。トークンをこのTOMLに直書きしない）。
+[mcp_servers.obsidian]
+url = "http://127.0.0.1:27123/mcp/"
+bearer_token_env_var = "OBSIDIAN_API_KEY"
+startup_timeout_sec = 15
+tool_timeout_sec = 60
+enabled = true
+#  ↑ HTTPSで使いたい場合は次の2行に差し替え、証明書を信頼させる:
+#  url = "https://127.0.0.1:27124/mcp/"
+#  （証明書: https://127.0.0.1:27124/obsidian-local-rest-api.crt を取得して信頼）
+
+# --- GitHub（PR/Issue操作。トークンは環境変数から）-----------------------------
+#  使うときだけ enabled = true に。GITHUB_PAT_TOKEN を環境変数で渡す。
+[mcp_servers.github]
+command = "npx"
+args = ["-y", "@modelcontextprotocol/server-github"]
+env = { "GITHUB_PERSONAL_ACCESS_TOKEN" = "${GITHUB_PAT_TOKEN}" }
+enabled = false
+
+# --- Context7（ライブラリ最新ドキュメント。無料）------------------------------
+[mcp_servers.context7]
+command = "npx"
+args = ["-y", "@upstash/context7-mcp"]
+enabled = false
+
+# -----------------------------------------------------------------------------
+# 4. ローカルモデル・プロバイダ（無料・無制限のレビュー/トリアージ用）
+# -----------------------------------------------------------------------------
+#  LM Studio をローカルサーバ(:1234)で起動して接続する。Plus制限を使い切った
+#  ときの「別の目（second opinion）」レビュアーとして使う。
+#
+#  【重要な制約 / 2026年仕様】
+#   Codex は 2026年2月以降 wire_api = "responses"（OpenAI Responses API）のみ対応。
+#   Chat Completions は廃止された。LM Studio が Responses API を直接話せない版
+#   の場合、404 になる。その場合は LiteLLM 等の変換プロキシを挟むこと:
+#     pip install 'litellm[proxy]'
+#     litellm --model lm_studio/qwen3-coder-30b --port 4000
+#   そして base_url を http://localhost:4000/v1 に向ける。
+#
+#  ※ 予約ID（openai / ollama / lmstudio）は再利用不可。ID は "lm_studio" を使う。
+[model_providers.lm_studio]
+name = "LM Studio (local)"
+base_url = "http://localhost:1234/v1"
+wire_api = "responses"
+requires_openai_auth = false
+
+# -----------------------------------------------------------------------------
+# 5. プロファイル（用途別の切替プリセット）
+# -----------------------------------------------------------------------------
+#  起動例:  codex --profile local_review
+#           codex exec --profile local_review "差分をレビューせよ"
+
+# ローカルモデルで読み取り専用レビュー（無料・Plus制限を消費しない）
+[profiles.local_review]
+model = "qwen/qwen3-coder-30b"   # LM Studioでロード中のモデルIDに合わせる
+model_provider = "lm_studio"
+approval_policy = "never"
+sandbox_mode = "read-only"
+
+# CI/自動実行用（非対話・確認なし・作業ツリー書き込み可）
+[profiles.ci]
+model = "gpt-5.4-mini"
+approval_policy = "never"
+sandbox_mode = "workspace-write"
+
+# 高難度ビルド用（推論強・フラッグシップ）
+[profiles.deep]
+model = "gpt-5.4"
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"
